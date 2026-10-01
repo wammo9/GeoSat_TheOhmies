@@ -1,0 +1,36 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 22, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "toolchainFile": "${sourceDir}/cmake/arm-none-eabi.cmake"
+    },
+    {
+      "name": "debug",
+      "displayName": "Debug (NUCLEO-L432KC)",
+      "inherits": "base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "MCU_DEVICE": "STM32L432xx" }
+    },
+    {
+      "name": "release",
+      "displayName": "Release (NUCLEO-L432KC)",
+      "inherits": "base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release", "MCU_DEVICE": "STM32L432xx" }
+    },
+    {
+      "name": "flight-debug",
+      "displayName": "Debug (STM32L433CCT6 flight board)",
+      "inherits": "base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "MCU_DEVICE": "STM32L433xx" }
+    }
+  ],
+  "buildPresets": [
+    { "name": "debug",        "configurePreset": "debug" },
+    { "name": "release",      "configurePreset": "release" },
+    { "name": "flight-debug", "configurePreset": "flight-debug" }
+  ]
+}

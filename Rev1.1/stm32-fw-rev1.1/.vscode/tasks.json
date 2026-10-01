@@ -1,0 +1,34 @@
+{
+  // Cmd+Shift+B runs the default build task.
+  // Cmd+Shift+P -> "Tasks: Run Task" for the flash tasks.
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build (debug)",
+      "type": "shell",
+      "command": "cmake --preset debug && cmake --build --preset debug",
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "Flash blink",
+      "type": "shell",
+      "command": "openocd -f interface/stlink.cfg -f target/stm32l4x.cfg -c \"program build/debug/blink.elf verify reset exit\"",
+      "dependsOn": "Build (debug)",
+      "problemMatcher": []
+    },
+    {
+      "label": "Flash geosat_fw",
+      "type": "shell",
+      "command": "openocd -f interface/stlink.cfg -f target/stm32l4x.cfg -c \"program build/debug/geosat_fw.elf verify reset exit\"",
+      "dependsOn": "Build (debug)",
+      "problemMatcher": []
+    },
+    {
+      "label": "Clean",
+      "type": "shell",
+      "command": "rm -rf build",
+      "problemMatcher": []
+    }
+  ]
+}

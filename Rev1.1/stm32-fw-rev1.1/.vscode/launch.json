@@ -1,0 +1,32 @@
+{
+  // F5 builds, flashes and stops at main(). Needs the Cortex-Debug extension + OpenOCD.
+  // Optional: download STM32L4x2.svd (from ST or the cmsis-svd repo) into ./svd
+  // and uncomment "svdFile" to see peripheral registers by name.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug blink",
+      "type": "cortex-debug",
+      "request": "launch",
+      "servertype": "openocd",
+      "cwd": "${workspaceFolder}",
+      "executable": "${workspaceFolder}/build/debug/blink.elf",
+      "configFiles": ["interface/stlink.cfg", "target/stm32l4x.cfg"],
+      "runToEntryPoint": "main",
+      "preLaunchTask": "Build (debug)"
+      // ,"svdFile": "${workspaceFolder}/svd/STM32L4x2.svd"
+    },
+    {
+      "name": "Debug geosat_fw",
+      "type": "cortex-debug",
+      "request": "launch",
+      "servertype": "openocd",
+      "cwd": "${workspaceFolder}",
+      "executable": "${workspaceFolder}/build/debug/geosat_fw.elf",
+      "configFiles": ["interface/stlink.cfg", "target/stm32l4x.cfg"],
+      "runToEntryPoint": "main",
+      "preLaunchTask": "Build (debug)"
+      // ,"svdFile": "${workspaceFolder}/svd/STM32L4x2.svd"
+    }
+  ]
+}
