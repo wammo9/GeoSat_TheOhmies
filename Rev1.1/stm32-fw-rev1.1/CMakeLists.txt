@@ -51,6 +51,7 @@ add_library(peripherals OBJECT
   src/platform/gps_uart.c
   src/drivers/imu.c
   src/drivers/ina219.c
+  src/drivers/tmp117.c
   src/drivers/gps.c)
 target_link_libraries(peripherals PUBLIC fw_config)
 

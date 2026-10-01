@@ -8,9 +8,10 @@
  *  Debug UART RX    PA15      (ST-LINK VCP)      USB CDC Serial
  *  I2C1 SDA         PB7       D4                 D4 / GPIO22
  *  I2C1 SCL         PB6       D5                 D5 / GPIO23
- *  GPS UART TX      PA9       D1  -> Ultimate GPS v3 RX   D1 / GPIO1
- *  GPS UART RX      PA10      D0  <- Ultimate GPS v3 TX   D2 / GPIO2
- *  TMP36 Vout       PA0       A0  (ADC1_IN5)     A0 / GPIO0
+ *  GPS UART TX      PA9       D1  -> XA1110 RX   D1 / GPIO1
+ *  GPS UART RX      PA10      D0  <- XA1110 TX   D2 / GPIO2
+ *  (TMP117 temperature sensor is on the I2C1 bus above, address 0x48.
+ *   PA0 / A0 is now free; the old TMP36 analog input is gone.)
  *
  *  !! Nucleo-32 gotcha: solder bridges SB16/SB18 tie PB6/PB7 to PA6/PA5
  *     (A5/A4) by default. Leave A4/A5 unconnected (or remove the bridges).
@@ -56,12 +57,8 @@
 #define GPS_AF          LL_GPIO_AF_7
 #define GPS_BAUD        9600U
 
-/* TMP36 analog input */
-#define TMP36_PORT      GPIOA
-#define TMP36_PIN       LL_GPIO_PIN_0
-#define TMP36_ADC_CH    LL_ADC_CHANNEL_5
-
 /* I2C addresses (7-bit) */
+#define TMP117_ADDR     0x48U   /* Adafruit 4821 default (ADD0 -> GND) */
 #define LSM6DSOX_ADDR   0x6AU
 #define LIS3MDL_ADDR_A  0x1EU   /* address the ESP32 code used */
 #define LIS3MDL_ADDR_B  0x1CU   /* Adafruit breakout default */

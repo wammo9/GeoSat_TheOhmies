@@ -33,11 +33,8 @@ static uint32_t adc_convert_avg(uint32_t channel)
 
 void adc_init(void)
 {
-  /* Analog pin */
-  LL_AHB2_GRP1_EnableClock(LL_AHB2_GRP1_PERIPH_GPIOA);
-  LL_GPIO_SetPinMode(TMP36_PORT, TMP36_PIN, LL_GPIO_MODE_ANALOG);
-  LL_GPIO_SetPinPull(TMP36_PORT, TMP36_PIN, LL_GPIO_PULL_NO);
-
+  /* No external analog pins in use now (temperature moved to the TMP117);
+   * the ADC only measures VREFINT to track the real supply voltage. */
   LL_AHB2_GRP1_EnableClock(LL_AHB2_GRP1_PERIPH_ADC);
 
   /* Common settings (must be written while the ADC is disabled).
@@ -64,7 +61,6 @@ void adc_init(void)
 
   /* VREFINT needs >= 4 us sampling; 640.5 cycles @ 8 MHz = 80 us */
   LL_ADC_SetChannelSamplingTime(ADC1, LL_ADC_CHANNEL_VREFINT, LL_ADC_SAMPLINGTIME_640CYCLES_5);
-  LL_ADC_SetChannelSamplingTime(ADC1, TMP36_ADC_CH, LL_ADC_SAMPLINGTIME_247CYCLES_5);
 
   LL_ADC_ClearFlag_ADRDY(ADC1);
   LL_ADC_Enable(ADC1);

@@ -3,7 +3,7 @@
  *
  * Same behaviour as the Arduino version:
  *   - GPS NMEA drained continuously
- *   - every 1 s: TMP36, LSM6DSOX, LIS3MDL, INA219, GPS printed to serial
+ *   - every 1 s: TMP117, LSM6DSOX, LIS3MDL, INA219, GPS printed to serial
  *
  * Serial output is on the ST-LINK virtual COM port at 115200 8N1.
  */
@@ -16,24 +16,16 @@
 #include "gps_uart.h"
 #include "imu.h"
 #include "ina219.h"
+#include "tmp117.h"
 #include "gps.h"
-#include "stm32l4xx_ll_adc.h"
 #include <stdio.h>
 
 #define PRINT_INTERVAL_MS 1000U
 
+static bool    tmp_ok;
 static bool    lsm_ok;
 static uint8_t lis_addr;   /* 0 = not found */
 static bool    ina_ok;
-
-static float read_tmp36_c(uint32_t *vdda_mv_out)
-{
-  uint32_t vdda = adc_read_vdda_mv();
-  uint32_t mv   = adc_read_channel_mv(TMP36_ADC_CH, vdda);
-  if (vdda_mv_out) { *vdda_mv_out = vdda; }
-  /* TMP36: 500 mV offset at 0 C, 10 mV / C */
-  return ((float)mv - 500.0f) / 10.0f;
-}
 
 static void i2c_scan(void)
 {
@@ -58,12 +50,17 @@ static void setup(void)
   printf("\n=== NUCLEO-L432KC Multi-Sensor Initialization ===\n");
   printf("SYSCLK %lu Hz\n", (unsigned long)SystemCoreClock);
 
-  /* 1. ADC for TMP36 (+ VREFINT for real VDDA) */
+  /* 1. ADC, used only to measure the real supply voltage (VREFINT) */
   adc_init();
 
   /* 2. I2C bus @ 400 kHz */
   i2c_init();
   i2c_scan();
+
+  /* 2b. TMP117 temperature sensor (continuous, 500 ms cycle, 8x averaged) */
+  tmp_ok = tmp117_setup(TMP117_ADDR);
+  printf(tmp_ok ? "[OK] TMP117 initialized (0x%02X).\n"
+                : "[FAIL] TMP117 not detected at 0x%02X!\n", TMP117_ADDR);
 
   /* 3. LSM6DSOX */
   lsm_ok = lsm6dsox_setup(LSM6DSOX_ADDR);
@@ -93,10 +90,16 @@ static void print_readings(void)
 {
   printf("---------------- SENSOR READINGS ----------------\n");
 
-  uint32_t vdda;
-  float t = read_tmp36_c(&vdda);
-  printf("TMP36 Temp:    %.2f C (%.2f F)   [VDDA %lu mV]\n",
-         t, t * 1.8f + 32.0f, (unsigned long)vdda);
+  if (tmp_ok) {
+    int16_t raw;
+    if (tmp117_read_raw(&raw)) {
+      float t = tmp117_raw_to_c(raw);
+      printf("TMP117 Temp:   %.3f C (%.3f F)\n", t, t * 1.8f + 32.0f);
+    } else {
+      printf("TMP117:        read error\n");
+    }
+  }
+  printf("Supply VDDA:   %lu mV\n", (unsigned long)adc_read_vdda_mv());
 
   if (lsm_ok) {
     vec3f_t a, g;

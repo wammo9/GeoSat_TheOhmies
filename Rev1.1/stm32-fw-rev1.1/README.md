@@ -9,7 +9,7 @@ Two firmware images:
 | Target      | What it does                                                        |
 |-------------|---------------------------------------------------------------------|
 | `blink`     | LED + `printf` over the ST-LINK USB serial. Flash this first.        |
-| `geosat_fw` | The full port: TMP36, LSM6DSOX, LIS3MDL, INA219, Ultimate GPS v3 GPS.         |
+| `geosat_fw` | The full port: TMP117, LSM6DSOX, LIS3MDL, INA219, Ultimate GPS v3.   |
 
 ---
 
@@ -104,7 +104,7 @@ watches all work.
 | I2C SCL      | D5         | PB6     | D5                   |
 | GPS TX → MCU | **D0**     | PA10    | D2 (moved!)          |
 | MCU → GPS RX | D1         | PA9     | D1                   |
-| TMP36 Vout   | A0         | PA0     | A0                   |
+| TMP117 (I2C, 0x48) | D4 / D5 (shared bus) | PB7 / PB6 | replaces the TMP36 on A0 |
 | 3V3 / GND    | 3V3 / GND  |         |                      |
 
 - **Don't use A4/A5.** Solder bridges SB16/SB18 connect them to D4/D5 (PB7/PB6).
@@ -143,7 +143,7 @@ src/app/blink.c, main.c     the two firmware images
 | `Serial.printf`                   | `printf` → USART2 → ST-LINK USB serial (`syscalls.c`)           |
 | `millis()`                        | `millis()` from 1 ms SysTick (`tick.c`)                          |
 | `Wire` @ 400 kHz                  | `i2c.c` (LL, blocking with timeouts)                            |
-| `analogReadMilliVolts`            | `adc.c`, corrected by VREFINT factory calibration                |
+| TMP36 + `analogReadMilliVolts`    | TMP117 over I2C (`tmp117.c`); `adc.c` now only tracks VDDA via VREFINT |
 | `Adafruit_LSM6DSOX` / `LIS3MDL`   | ST's official `lsm6dsox-pid` / `lis3mdl-pid` drivers (`imu.c`)   |
 | `Adafruit_INA219`                 | `ina219.c`, same 32 V / 2 A calibration                          |
 | `HardwareSerial` + `TinyGPSPlus`  | USART1 RX interrupt ring buffer + `minmea` (`gps_uart.c`, `gps.c`)|
