@@ -1,0 +1,1 @@
+This folder contains the firmware that is built for Rev1 and testing scripts for data acquisition. Rev 1 is the PCB version that has the ESP32-C6.
