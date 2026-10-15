@@ -1,0 +1,31 @@
+Rev 1 GPS field test - gps_20261015_115121
+generated 2026-10-15 12:35:38
+
+[corner_towards_itll_west]  42 fixes over 41 s, time to fix 0 s
+    mean 40.0071406, -105.2622323  alt 1654.5 m   sats 9.9  HDOP 1.14
+    spread: CEP50 0.21 m  R95 0.49 m  2DRMS 0.54 m
+    vs phone: 2.13 m toward 287 deg
+    notes: trees
+[by_stoplight._towards_itll_east]  42 fixes over 41 s, time to fix 0 s
+    mean 40.0072218, -105.2615714  alt 1662.7 m   sats 10.6  HDOP 1.03
+    spread: CEP50 0.11 m  R95 0.16 m  2DRMS 0.22 m
+    vs phone: 4.79 m toward 323 deg
+    notes: tress stoplight lamp
+[intersection_post]  42 fixes over 41 s, time to fix 0 s
+    mean 40.0080190, -105.2617187  alt 1651.9 m   sats 12.6  HDOP 0.87
+    spread: CEP50 0.32 m  R95 0.60 m  2DRMS 0.72 m
+    vs phone: 0.40 m toward 306 deg
+    notes: building
+
+PA1010D spec is ~3 m CEP with open sky; phones are typically +/-3-5 m, so the
+phone comparison checks gross agreement, not the module's full accuracy.
+
+CHECKS
+  [PASS] corner_towards_itll_west: precision (CEP50)           0.21 m (limit 5.0 m)
+  [PASS] corner_towards_itll_west: agreement with phone        2.13 m (limit 10.0 m)
+  [PASS] by_stoplight._towards_itll_east: precision (CEP50)     0.11 m (limit 5.0 m)
+  [PASS] by_stoplight._towards_itll_east: agreement with phone  4.79 m (limit 10.0 m)
+  [PASS] intersection_post: precision (CEP50)                   0.32 m (limit 5.0 m)
+  [PASS] intersection_post: agreement with phone                0.40 m (limit 10.0 m)
+
+OVERALL: PASS

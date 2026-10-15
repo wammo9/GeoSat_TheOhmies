@@ -1,0 +1,25 @@
+Rev 1 LIS3MDL magnetometer validation
+generated 2026-10-15 10:36:34
+
+Samples: 3001 over 60.0 s
+Raw |B|: mean 42.44 uT, std 4.85 uT (11.4%)  <- varies with orientation if uncalibrated
+
+Hard-iron offset [uT]: x=-3.21  y=+1.50  z=-6.69  (|offset| = 7.57)
+Soft-iron correction matrix W (calibrated = W @ (raw - offset)):
+    [+0.9691  +0.0239  -0.0217]
+    [+0.0239  +0.9744  +0.0472]
+    [-0.0217  +0.0472  +1.0625]
+Ellipsoid radii [uT]: 44.98, 42.15, 38.58  (max/min = 1.166)
+Fitted field strength: 41.82 uT
+Calibrated |B|: mean 41.80 uT, std 0.58 uT (1.38%)
+Fit residual RMS: 1.38% of field
+Orientation coverage: 98% of 128 direction bins
+
+CHECKS
+  [PASS] orientation coverage                  98% (need 70% for a trustworthy fit)
+  [PASS] ellipsoid fit residual                1.38% RMS (limit 2.0%)
+  [PASS] soft-iron distortion modest           axis ratio 1.166 (limit 1.25)
+  [PASS] hard-iron offset within sensor range  max 6.7 uT (4 gauss range = 400 uT)
+  [PASS] field strength vs local Earth field   41.82 uT vs 41.60 uT (+0.5%, tol +/-10.0%)
+
+OVERALL: PASS

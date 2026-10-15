@@ -1,0 +1,32 @@
+[
+  {
+    "name": "corner_towards_itll_west",
+    "csv": "gps_01_corner_towards_itll_west.csv",
+    "ref_lat": 40.00713491706449,
+    "ref_lon": -105.26220835050685,
+    "ref_acc_m": null,
+    "time_to_fix_s": 0.0,
+    "notes": "trees",
+    "ref_source": "google maps"
+  },
+  {
+    "name": "by_stoplight._towards_itll_east",
+    "csv": "gps_02_by_stoplight._towards_itll_east.csv",
+    "ref_lat": 40.00718723823342,
+    "ref_lon": -105.26153768897524,
+    "ref_acc_m": null,
+    "time_to_fix_s": 0.0,
+    "notes": "tress stoplight lamp",
+    "ref_source": "google maps"
+  },
+  {
+    "name": "intersection_post",
+    "csv": "gps_03_intersection_post.csv",
+    "ref_lat": 40.00801690162521,
+    "ref_lon": -105.26171485553829,
+    "ref_acc_m": null,
+    "time_to_fix_s": 0.0,
+    "notes": "building",
+    "ref_source": "google maps"
+  }
+]

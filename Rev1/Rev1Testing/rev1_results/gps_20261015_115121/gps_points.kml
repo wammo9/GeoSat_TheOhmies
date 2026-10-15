@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document>
+  <Placemark><name>corner_towards_itll:_west (GPS mean)</name><Point><coordinates>-105.2622323,40.0071406,0</coordinates></Point></Placemark>
+  <Placemark><name>corner_towards_itll:_west (phone)</name><Point><coordinates>-105.2622084,40.0071349,0</coordinates></Point></Placemark>
+  <Placemark><name>by_stoplight._towards_itll_east (GPS mean)</name><Point><coordinates>-105.2615714,40.0072218,0</coordinates></Point></Placemark>
+  <Placemark><name>by_stoplight._towards_itll_east (phone)</name><Point><coordinates>-105.2615377,40.0071872,0</coordinates></Point></Placemark>
+  <Placemark><name>intersection_post (GPS mean)</name><Point><coordinates>-105.2617187,40.0080190,0</coordinates></Point></Placemark>
+  <Placemark><name>intersection_post (phone)</name><Point><coordinates>-105.2617149,40.0080169,0</coordinates></Point></Placemark>
+</Document></kml>

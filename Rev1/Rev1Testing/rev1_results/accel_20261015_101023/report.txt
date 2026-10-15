@@ -1,0 +1,41 @@
+Rev 1 LSM6DSOX accelerometer validation
+generated 2026-10-15 10:16:43
+
+orient     x [g]    y [g]    z [g]  |a| [g]  max err [mg]
++Z        -0.005   -0.004   +1.010   1.0102          10.2
+-Z        -0.012   +0.040   -1.002   1.0025          39.5
++X        +1.002   +0.006   +0.037   1.0026          37.2
+-X        -1.010   -0.033   -0.011   1.0106          33.5
++Y        -0.003   +0.993   +0.021   0.9935          21.3
+-Y        +0.011   -1.010   -0.011   1.0109          11.4
+
+Six-point calibration (from opposing orientations):
+  x: offset    -4.0 mg   scale 1.0059 (+0.59%)
+  y: offset    -8.6 mg   scale 1.0019 (+0.19%)
+  z: offset    +4.3 mg   scale 1.0059 (+0.59%)
+
+Gyro zero-rate bias while still [dps]: x=+0.178  y=+0.206  z=+0.386
+
+CHECKS
+  [PASS] +Z: polarity/1 g on Z           +1.010 g (expect +1 +/-0.05)
+  [PASS] +Z: cross axes ~0 g             worst 4.9 mg (limit 50 mg)
+  [PASS] -Z: polarity/1 g on Z           -1.002 g (expect -1 +/-0.05)
+  [PASS] -Z: cross axes ~0 g             worst 39.5 mg (limit 50 mg)
+  [PASS] +X: polarity/1 g on X           +1.002 g (expect +1 +/-0.05)
+  [PASS] +X: cross axes ~0 g             worst 37.2 mg (limit 50 mg)
+  [PASS] -X: polarity/1 g on X           -1.010 g (expect -1 +/-0.05)
+  [PASS] -X: cross axes ~0 g             worst 33.5 mg (limit 50 mg)
+  [PASS] +Y: polarity/1 g on Y           +0.993 g (expect +1 +/-0.05)
+  [PASS] +Y: cross axes ~0 g             worst 21.3 mg (limit 50 mg)
+  [PASS] -Y: polarity/1 g on Y           -1.010 g (expect -1 +/-0.05)
+  [PASS] -Y: cross axes ~0 g             worst 11.4 mg (limit 50 mg)
+  [PASS] |a| = 1 g in every orientation  worst -Y: 1.0109 g, range 0.993-1.011 (tol +/-0.05)
+  [PASS] x zero-g offset                 -4.0 mg (limit +/-40 mg)
+  [PASS] x scale factor                  +0.59% (limit +/-3.0%)
+  [PASS] y zero-g offset                 -8.6 mg (limit +/-40 mg)
+  [PASS] y scale factor                  +0.19% (limit +/-3.0%)
+  [PASS] z zero-g offset                 +4.3 mg (limit +/-40 mg)
+  [PASS] z scale factor                  +0.59% (limit +/-3.0%)
+  [PASS] gyro bias at rest               max 0.39 dps (limit 3.0)
+
+OVERALL: PASS

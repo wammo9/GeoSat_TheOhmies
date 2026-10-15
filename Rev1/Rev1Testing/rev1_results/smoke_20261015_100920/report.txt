@@ -1,0 +1,25 @@
+Rev 1 smoke test
+generated 2026-10-15 10:09:25
+
+Firmware info: {'fw': 'rev1-hil-1.5', 'lsm': '0x6A', 'lis': '0x1C', 'ina': '0x40;0x41', 'gps_chars': '1133', 'gps_fail_cs': '0'}
+I2C scan: 0x1C, 0x40, 0x41, 0x6A
+LSM6DSOX die temp: 26.5 C
+INA219 mean current: -0.1 mA
+GPS fix: not yet (normal indoors), sats=0
+
+CHECKS
+  [PASS] LSM6DSOX on I2C            0x6A
+  [PASS] LIS3MDL on I2C             0x1C
+  [PASS] 2x INA219 on I2C           found 0x40, 0x41
+  [PASS] IMU streaming              250 samples
+  [PASS] MAG streaming              250 samples
+  [PASS] TMP streaming              50 samples
+  [PASS] PWR streaming              100 samples
+  [PASS] GPS streaming              6 samples
+  [PASS] accel |a| [g] plausible    1.010 (window 0.8-1.2)
+  [PASS] mag |B| [uT] plausible     37.621 (window 15.0-120.0)
+  [PASS] TMP36 [C] plausible        25.368 (window 0.0-50.0)
+  [PASS] bus voltage [V] plausible  3.295 (window 3.0-5.5)
+  [PASS] GPS UART receiving NMEA    2381 chars parsed
+
+OVERALL: PASS

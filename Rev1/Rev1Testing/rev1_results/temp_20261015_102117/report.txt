@@ -1,0 +1,19 @@
+Rev 1 TMP36 validation
+generated 2026-10-15 10:25:15
+
+condition      mean C   std drift C/min  die C  ref C  error
+lab_ambient     25.37  0.06       -0.34   26.2   25.2   0.17
+heat_gun        29.08  0.95        2.77   26.2   28.9   0.18
+    heat_gun end-of-ramp vs reference: +0.2 C (informational)
+
+TMP36 datasheet: +/-1 C typ / +/-2 C max at 25 C; the ESP32 ADC adds its own error.
+die C = LSM6DSOX internal temperature (sits a few C above ambient from self-heating).
+
+CHECKS
+  [PASS] lab_ambient: noise                  std 0.06 C (limit 0.5)
+  [FAIL] lab_ambient: settled                drift -0.34 C/min (limit 0.3)
+  [PASS] lab_ambient: accuracy vs reference  +0.17 C (tolerance +/-2.0 C)
+  [PASS] heat_gun: noise                     n/a for ramp
+  [FAIL] heat_gun: responds to heat          rose 1.7 C during capture
+
+OVERALL: FAIL
