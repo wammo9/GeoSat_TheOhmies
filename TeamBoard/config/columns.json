@@ -1,0 +1,42 @@
+{
+  "timezone": "America/Denver",
+  "meetings": [
+    "Tuesday",
+    "Thursday"
+  ],
+  "columns": [
+    {
+      "id": "backlog",
+      "title": "Backlog"
+    },
+    {
+      "id": "tuesday",
+      "title": "Tuesday Commitments"
+    },
+    {
+      "id": "in_progress",
+      "title": "In Progress"
+    },
+    {
+      "id": "thursday",
+      "title": "Thursday Review"
+    },
+    {
+      "id": "completed",
+      "title": "Completed",
+      "requires": "evidence"
+    }
+  ],
+  "blockedAppliesTo": [
+    "backlog",
+    "tuesday",
+    "in_progress",
+    "thursday"
+  ],
+  "priorities": [
+    "Low",
+    "Medium",
+    "High",
+    "Critical"
+  ]
+}

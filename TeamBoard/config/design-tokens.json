@@ -1,0 +1,8 @@
+{
+  "color": {"bg":"#F5F9FC","dot":"#C9D8E6","paleBlue":"#DCEBFA","navy":"#12305A","teal":"#2BA6A0","text":"#1B2A3A","danger":"#C62828"},
+  "radius": {"card":"14px","panel":"18px"},
+  "space": {"gap":"16px","pad":"20px"},
+  "background": "radial-gradient(#C9D8E6 1px, transparent 1px) 0 0/22px 22px",
+  "header": "Flowing blue SVG wave, navy to pale blue",
+  "stickyTilt": "max ±1deg; disabled under prefers-reduced-motion"
+}

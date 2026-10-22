@@ -1,0 +1,60 @@
+{
+  "label": "DEMO DATA \u2014 example tasks, not real team work",
+  "tasks": [
+    {
+      "title": "Define enclosure dimensions",
+      "owner": "J",
+      "workstream": "Mechanical / Enclosure",
+      "priority": "High",
+      "dueOffsetDays": 2,
+      "deliverable": "CAD sketch with board, battery and antenna keep-outs",
+      "column": "in_progress"
+    },
+    {
+      "title": "Draft the integration test plan",
+      "owner": "A",
+      "workstream": "Testing / Integration",
+      "priority": "High",
+      "dueOffsetDays": 3,
+      "deliverable": "Test plan doc with pass/fail criteria per subsystem",
+      "column": "tuesday"
+    },
+    {
+      "title": "Display sample sensor packets in the GUI",
+      "owner": "W",
+      "workstream": "GUI / Data",
+      "priority": "Medium",
+      "dueOffsetDays": 4,
+      "deliverable": "GUI table showing parsed sample packets",
+      "column": "in_progress"
+    },
+    {
+      "title": "Complete the power schematic",
+      "owner": "M",
+      "workstream": "Hardware / PCB",
+      "priority": "High",
+      "dueOffsetDays": -1,
+      "deliverable": "Reviewed schematic PDF",
+      "blocker": "Waiting on regulator selection",
+      "column": "thursday"
+    },
+    {
+      "title": "Implement RF packet exchange",
+      "owner": "T",
+      "workstream": "Firmware / RF",
+      "priority": "Critical",
+      "dueOffsetDays": 7,
+      "deliverable": "Two boards exchanging packets, logged",
+      "column": "backlog"
+    },
+    {
+      "title": "Place Rev 2 PCB components",
+      "owner": "B",
+      "workstream": "Hardware / PCB",
+      "priority": "Medium",
+      "dueOffsetDays": 9,
+      "deliverable": "Placement screenshot and DRC report",
+      "column": "backlog"
+    }
+  ]
+}

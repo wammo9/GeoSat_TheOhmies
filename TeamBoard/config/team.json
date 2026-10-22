@@ -1,0 +1,8 @@
+[
+  {"initial":"J","color":"purple","hex":"#7C4DBE","role":"Team Lead","focus":"Mechanical, Hardware & Enclosure"},
+  {"initial":"A","color":"orange","hex":"#E8872B","role":"Scheduling","focus":"System Architecture & Testing"},
+  {"initial":"W","color":"blue","hex":"#2F7DE1","role":"Customer Relations","focus":"GUI"},
+  {"initial":"M","color":"green","hex":"#3FA55B","role":"Documentation","focus":"Circuit Design"},
+  {"initial":"T","color":"red","hex":"#D8433F","role":"Finance","focus":"Software & Firmware"},
+  {"initial":"B","color":"yellow","hex":"#E6B800","role":"Assignments","focus":"PCB"}
+]
