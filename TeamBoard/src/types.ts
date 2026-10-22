@@ -107,11 +107,20 @@ export interface Summary {
   milestone: string;
   milestone_date: string | null;
   blockers_decisions: string;
-  slides_pre_url: string | null;
-  slides_post_url: string | null;
+  slides_working_url: string | null; // the deck being edited for the next meeting
+  slides_submitted_url: string | null; // the frozen Friday copy
+  slides_submitted_on: string | null;
   version: number;
   updated_by: string | null;
   updated_at: string;
+}
+
+export interface SlideArchive {
+  id: string;
+  url: string;
+  submitted_on: string | null;
+  created_by: string | null;
+  created_at: string;
 }
 
 export interface Member {

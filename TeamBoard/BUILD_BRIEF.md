@@ -34,8 +34,11 @@ See `config/workstreams.json`.
 - **Thursday review view:** inspect deliverables, record evidence, identify integration dependencies, explicitly carry unfinished tasks forward with a revised due date.
 - Never auto-complete tasks or change due dates when a meeting passes.
 
-## Customer slides links (added later)
-Two boxes at the top of the Board, "Customer slides: pre-meeting" and "Customer slides: post-meeting". Anyone can add, change or remove a link (e.g. to a Canva presentation); only http(s) links are accepted; changes sync live, are attributed, and warn on simultaneous edits.
+## Customer slides (added later)
+The team meets Wednesdays; slides are submitted Fridays. At the top of the Board:
+- **Working deck** — the link to the deck being edited for the next Wednesday meeting (date shown automatically, plus the next Friday due date).
+- **Submitted deck** — the frozen Friday copy, with its submission date and the Wednesday meeting it's presented at. **Submit a new copy** files the previous submitted deck under **Past submitted decks** (atomic, so history is never lost); **Fix link** corrects a typo without archiving.
+Anyone can edit; only http(s) links are accepted; changes sync live and warn on simultaneous edits.
 
 ## Calendar (added after the first release)
 - A **Calendar** tab, in addition to (not replacing) the Tuesday/Thursday views.

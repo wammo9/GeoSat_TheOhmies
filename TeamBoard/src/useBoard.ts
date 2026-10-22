@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { errMsg, supabase as sb } from './supabase';
-import type { Activity, CalEvent, ColId, Comment, Evidence, Invite, Member, Person, Summary, Task, TaskDraft } from './types';
+import type { Activity, CalEvent, SlideArchive, ColId, Comment, Evidence, Invite, Member, Person, Summary, Task, TaskDraft } from './types';
 import { addDays, nextWeekday, THURSDAY, todayDenver } from './lib/dates';
 import DEMO_SEED from '../seed/demo-tasks.json';
 import { colTitle, completionError, evidenceFrom, hasEvidence, noDeliverableEvidence, validateDraft } from './lib/rules';
@@ -15,7 +15,7 @@ export type SaveResult =
 
 const TEAM_ORDER = ['J', 'A', 'W', 'M', 'T', 'B'];
 const teamRank = (i: string) => { const n = TEAM_ORDER.indexOf(i.toUpperCase()); return n < 0 ? 99 : n; }; // keep the team's usual order
-const TABLES = ['tasks', 'comments', 'activity', 'people', 'workspace_summary', 'members', 'invites', 'events'] as const;
+const TABLES = ['tasks', 'comments', 'activity', 'people', 'workspace_summary', 'members', 'invites', 'events', 'slide_archive'] as const;
 type Table = (typeof TABLES)[number];
 
 const DEMO = DEMO_SEED.tasks;
@@ -29,6 +29,7 @@ export function useBoard(workspaceId: string, userId: string) {
   const [members, setMembers] = useState<Member[]>([]);
   const [invites, setInvites] = useState<Invite[]>([]);
   const [events, setEvents] = useState<CalEvent[]>([]);
+  const [slideArchive, setSlideArchive] = useState<SlideArchive[]>([]);
   const [loading, setLoading] = useState(true);
   const [live, setLive] = useState<Live>('connecting');
   const [liveDetail, setLiveDetail] = useState('');
@@ -55,6 +56,7 @@ export function useBoard(workspaceId: string, userId: string) {
         case 'members': res = await q('members'); break;
         case 'invites': res = await q('invites'); break;
         case 'events': res = await q('events').order('start_date'); break;
+        case 'slide_archive': res = await q('slide_archive').order('submitted_on', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false }); break;
       }
       if (res.error) throw res.error;
       const rows = res.data as any[];
@@ -67,6 +69,7 @@ export function useBoard(workspaceId: string, userId: string) {
         case 'members': setMembers(rows); break;
         case 'invites': setInvites(rows); break;
         case 'events': setEvents(rows); break;
+        case 'slide_archive': setSlideArchive(rows); break;
       }
     },
     [workspaceId],
@@ -397,6 +400,29 @@ export function useBoard(workspaceId: string, userId: string) {
     [track, workspaceId, refresh],
   );
 
+  // ---------------------------------------------------------------- customer slides
+  /** File the current submitted deck in the archive and replace it with a new copy (atomic, version-checked). */
+  const submitSlidesCopy = useCallback(
+    (url: string, submittedOn: string, baseVersion: number): Promise<'ok' | 'conflict' | undefined> =>
+      track(async () => {
+        const { error } = await sb.rpc('submit_slides_copy', { p_url: url, p_submitted_on: submittedOn, p_base_version: baseVersion });
+        if (error && error.code !== '40001') throw error;
+        await refresh('workspace_summary', 'slide_archive');
+        return error ? ('conflict' as const) : ('ok' as const);
+      }),
+    [track, refresh],
+  );
+
+  const removeArchivedSlides = useCallback(
+    (id: string) =>
+      track(async () => {
+        const { error } = await sb.from('slide_archive').delete().eq('id', id);
+        if (error) throw error;
+        setSlideArchive((a) => a.filter((x) => x.id !== id));
+      }),
+    [track],
+  );
+
   // ---------------------------------------------------------------- team
   const savePerson = useCallback(
     (p: Person, patch: Partial<Person>) =>
@@ -498,7 +524,8 @@ export function useBoard(workspaceId: string, userId: string) {
 
   return {
     workspaceId, userId, loading, live, liveDetail, reconnect, saving, error, setError, notice, setNotice, today, thursday,
-    people, tasks, comments, activity, summary, members, invites, events, me, person, actorName,
+    people, tasks, comments, activity, summary, members, invites, events, slideArchive, me, person, actorName,
+    submitSlidesCopy, removeArchivedSlides,
     createEvent, saveEvent, deleteEvent, setTaskEvent,
     createTask, saveTask, moveTask, addEvidence, addNoDeliverable, removeEvidence, carryForward, deleteTask, addComment,
     saveSummary, savePerson, addPerson, addInvite, removeInvite, removeMember, loadDemo, removeDemo, refresh,

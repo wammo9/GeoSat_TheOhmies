@@ -28,7 +28,9 @@ export function nextWeekday(from: string, dow: number): string {
 }
 
 export const TUESDAY = 2;
+export const WEDNESDAY = 3;
 export const THURSDAY = 4;
+export const FRIDAY = 5;
 
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—';

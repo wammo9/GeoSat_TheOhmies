@@ -268,6 +268,7 @@ th { color: var(--navy); }
 }
 
 /* customer slides links */
+.slides { display: grid; gap: 1rem; }
 .slides-links { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 .slide-box { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: .8rem 1.2rem; box-shadow: var(--shadow); border-top: 5px solid #8dbbea; }
 .slide-box:has(.open-slides) { border-top-color: var(--teal); }
@@ -275,3 +276,11 @@ th { color: var(--navy); }
 .open-slides:hover { background: var(--navy-2); }
 .break { word-break: break-all; margin: 0 0 .4rem; }
 @media (max-width: 700px) { .slides-links { grid-template-columns: 1fr; } }
+
+.slide-sub { margin: 0 0 .5rem; color: var(--muted); font-size: .9rem; } .slide-sub strong { color: var(--navy); }
+.slide-dates { margin: .2rem 0; font-size: .9rem; } .slide-note { font-size: .82rem; color: var(--muted); margin: .3rem 0 .5rem; }
+.slide-box.submitted { background: #f3f8fc; }
+.past-decks { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: .8rem 1.2rem; box-shadow: var(--shadow); }
+.past-decks ul { list-style: none; margin: .4rem 0; padding: 0; display: grid; gap: .3rem; }
+.past-decks li { display: flex; justify-content: space-between; gap: 1rem; align-items: center; flex-wrap: wrap; padding: .3rem .5rem; border-radius: 8px; } .past-decks li:nth-child(odd) { background: #f4f8fc; }
+.small-link { color: var(--navy-2); font-weight: 600; }

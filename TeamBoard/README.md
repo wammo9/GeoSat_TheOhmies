@@ -50,8 +50,8 @@ Open the site in two browsers signed in as two different teammates, then:
 
 If you ran the earlier `db/schema.sql` on a Supabase project, paste **`db/add-calendar.sql`** into the SQL Editor and run it **once** (it only adds new things; existing data is untouched). New projects just run `db/schema.sql`, which already includes it. Then upload the new build.
 
-### Customer slides links release
-Paste **`db/add-slides.sql`** into the SQL Editor and run it **once**, then upload the new build. (Fresh projects: already in `db/schema.sql`.)
+### Customer slides release (working deck / submitted deck / past decks)
+Paste **`db/add-slides.sql`** into the SQL Editor and run it **once**, then upload the new build. It's safe whether or not you ran an earlier slides script (earlier links are kept) and safe to run twice. Fresh projects: already in `db/schema.sql`.
 
 ### Recurring events release
 If your project already has the Calendar, paste **`db/add-recurring.sql`** into the SQL Editor and run it **once** (existing events become "does not repeat"), then upload the new build. Fresh projects: `db/schema.sql` already includes it.

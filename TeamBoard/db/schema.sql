@@ -46,6 +46,17 @@ create table invites (
   primary key (workspace_id, email)
 );
 
+-- Past submitted decks: when a new Friday copy is submitted, the previous one is filed here.
+create table slide_archive (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references workspaces on delete cascade,
+  url text not null check (url ~* '^https?://\S+$'),
+  submitted_on date,
+  created_by uuid references auth.users on delete set null default auth.uid(),
+  created_at timestamptz not null default now()
+);
+create index slide_archive_ws_idx on slide_archive (workspace_id, submitted_on desc);
+
 create table events (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references workspaces on delete cascade,
@@ -125,8 +136,9 @@ create table workspace_summary (
   milestone text not null default '',
   milestone_date date,
   blockers_decisions text not null default '',
-  slides_pre_url text check (slides_pre_url is null or slides_pre_url ~* '^https?://\S+$'),    -- customer slides before the meeting (e.g. a Canva link)
-  slides_post_url text check (slides_post_url is null or slides_post_url ~* '^https?://\S+$'),  -- customer slides after the meeting
+  slides_working_url text check (slides_working_url is null or slides_working_url ~* '^https?://\S+$'),     -- the deck being edited for the next meeting (e.g. Canva)
+  slides_submitted_url text check (slides_submitted_url is null or slides_submitted_url ~* '^https?://\S+$'), -- the frozen copy submitted on Friday
+  slides_submitted_on date,                                                                                   -- the Friday it was submitted
   version int not null default 1,
   updated_by uuid,
   updated_at timestamptz not null default now()
@@ -225,7 +237,8 @@ begin
   if tg_op = 'UPDATE' and tg_table_name = 'workspace_summary' then
     r := jsonb_build_object('weekly_goal', new.weekly_goal, 'milestone', new.milestone,
                             'milestone_date', new.milestone_date, 'blockers_decisions', new.blockers_decisions,
-                            'slides_pre_url', new.slides_pre_url, 'slides_post_url', new.slides_post_url);
+                            'slides_working_url', new.slides_working_url, 'slides_submitted_url', new.slides_submitted_url,
+                            'slides_submitted_on', new.slides_submitted_on);
   end if;
   insert into activity(workspace_id, entity, actor_id, action, detail)
   values (ws,
@@ -321,6 +334,26 @@ begin
   return ws;
 end $$;
 
+-- "Submit a new copy": atomically files the current submitted deck in the archive and
+-- replaces it, refusing if someone else changed the slides since the caller loaded them.
+create or replace function submit_slides_copy(p_url text, p_submitted_on date, p_base_version int) returns void
+language plpgsql set search_path = public as $$
+declare ws uuid; cur workspace_summary%rowtype;
+begin
+  select workspace_id into ws from members where user_id = auth.uid();
+  if ws is null then raise exception 'not_a_member'; end if;
+  select * into cur from workspace_summary where workspace_id = ws for update;
+  if cur.version <> p_base_version then raise exception 'stale_version' using errcode = '40001'; end if;
+  if cur.slides_submitted_url is not null then
+    insert into slide_archive(workspace_id, url, submitted_on) values (ws, cur.slides_submitted_url, cur.slides_submitted_on);
+  end if;
+  update workspace_summary
+     set slides_submitted_url = p_url, slides_submitted_on = p_submitted_on, version = cur.version + 1
+   where workspace_id = ws;
+end $$;
+revoke execute on function submit_slides_copy(text, date, int) from public, anon;
+grant execute on function submit_slides_copy(text, date, int) to authenticated;
+
 -- Called after sign-in: turns a matching invite into membership.
 create or replace function claim_invite() returns uuid
 language plpgsql security definer set search_path = public as $$
@@ -361,6 +394,7 @@ alter table comments enable row level security;
 alter table activity enable row level security;
 alter table workspace_summary enable row level security;
 alter table events enable row level security;
+alter table slide_archive enable row level security;
 
 create policy ws_read      on workspaces for select using (is_member(id));
 create policy people_read  on people for select using (is_member(workspace_id));
@@ -379,9 +413,12 @@ create policy comments_add on comments for insert with check (is_member(workspac
 create policy comments_del on comments for delete using (author_id = auth.uid());
 create policy activity_read on activity for select using (is_member(workspace_id));
 create policy summary_read on workspace_summary for select using (is_member(workspace_id));
+create policy archive_read on slide_archive for select using (is_member(workspace_id));
+create policy archive_add  on slide_archive for insert with check (is_member(workspace_id));
+create policy archive_del  on slide_archive for delete using (is_member(workspace_id));
 create policy events_all   on events for all using (is_member(workspace_id)) with check (is_member(workspace_id));
 create policy summary_edit on workspace_summary for update using (is_member(workspace_id)) with check (is_member(workspace_id));
 
 -- ---------------------------------------------------------------- realtime
 
-alter publication supabase_realtime add table tasks, comments, activity, workspace_summary, people, members, invites, events;
+alter publication supabase_realtime add table tasks, comments, activity, workspace_summary, people, members, invites, events, slide_archive;

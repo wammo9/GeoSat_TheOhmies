@@ -166,16 +166,40 @@ describe('recurring events', () => {
   });
 });
 
-describe('customer slides links', () => {
+describe('customer slides (working deck, submitted deck, past decks)', () => {
+  const ver = async () => (await as(A, `select version v from workspace_summary`))[0].v as number;
   it('stores http(s) links and rejects anything else (e.g. javascript:)', async () => {
-    const cur = (await as(A, `select version v from workspace_summary`))[0].v;
-    const r = await as(A, `update workspace_summary set slides_pre_url='https://www.canva.com/design/abc/view', version=${cur + 1} where version=${cur} returning slides_pre_url`);
-    expect(r[0].slides_pre_url).toBe('https://www.canva.com/design/abc/view');
-    expect(await fails(A, `update workspace_summary set slides_post_url='javascript:alert(1)', version=${cur + 2}`)).toBeTruthy();
-    expect(await fails(A, `update workspace_summary set slides_post_url='not a link', version=${cur + 2}`)).toBeTruthy();
+    const cur = await ver();
+    const r = await as(A, `update workspace_summary set slides_working_url='https://www.canva.com/design/abc/edit', version=${cur + 1} where version=${cur} returning slides_working_url`);
+    expect(r[0].slides_working_url).toBe('https://www.canva.com/design/abc/edit');
+    expect(await fails(A, `update workspace_summary set slides_submitted_url='javascript:alert(1)', version=${cur + 2}`)).toBeTruthy();
+    expect(await fails(A, `update workspace_summary set slides_working_url='not a link', version=${cur + 2}`)).toBeTruthy();
   });
   it('is private to members and versioned like the other summary fields', async () => {
-    expect((await as(C, `select slides_pre_url from workspace_summary`)).length).toBe(0);
-    expect((await as(B, `update workspace_summary set slides_pre_url='https://x.com', version=1 where version=1 returning 1`)).length).toBe(0);
+    expect((await as(C, `select slides_working_url from workspace_summary`)).length).toBe(0);
+    expect((await as(B, `update workspace_summary set slides_working_url='https://x.com', version=1 where version=1 returning 1`)).length).toBe(0);
+  });
+  it('submitting a first copy sets the submitted deck without archiving anything', async () => {
+    await as(A, `select submit_slides_copy('https://canva.com/design/week1/view', '2026-10-23', ${await ver()})`);
+    const r = (await as(A, `select slides_submitted_url, slides_submitted_on::text d from workspace_summary`))[0];
+    expect(r).toEqual({ slides_submitted_url: 'https://canva.com/design/week1/view', d: '2026-10-23' });
+    expect((await as(A, `select count(*)::int n from slide_archive`))[0].n).toBe(0);
+  });
+  it('submitting a new copy files the previous one in the archive, atomically', async () => {
+    await as(B, `select submit_slides_copy('https://canva.com/design/week2/view', '2026-10-30', ${await ver()})`);
+    const arch = await as(A, `select url, submitted_on::text d, created_by from slide_archive`);
+    expect(arch).toEqual([{ url: 'https://canva.com/design/week1/view', d: '2026-10-23', created_by: B }]);
+    expect((await as(A, `select slides_submitted_url from workspace_summary`))[0].slides_submitted_url).toBe('https://canva.com/design/week2/view');
+  });
+  it('refuses a stale submit, a bad link, and outsiders, leaving the archive unchanged', async () => {
+    const v = await ver();
+    expect((await fails(A, `select submit_slides_copy('https://canva.com/design/week3/view', '2026-11-06', ${v - 1})`))?.code).toBe('40001');
+    expect(await fails(A, `select submit_slides_copy('javascript:alert(1)', '2026-11-06', ${v})`)).toBeTruthy();
+    expect(await fails(C, `select submit_slides_copy('https://evil.com/x', '2026-11-06', ${v})`)).toBeTruthy();
+    expect((await as(A, `select count(*)::int n from slide_archive`))[0].n).toBe(1);
+    expect((await as(C, `select count(*)::int n from slide_archive`))[0].n).toBe(0);
+  });
+  it('lets members remove a mistaken archive entry', async () => {
+    expect((await as(B, `delete from slide_archive returning id`)).length).toBe(1);
   });
 });
