@@ -125,6 +125,8 @@ create table workspace_summary (
   milestone text not null default '',
   milestone_date date,
   blockers_decisions text not null default '',
+  slides_pre_url text check (slides_pre_url is null or slides_pre_url ~* '^https?://\S+$'),    -- customer slides before the meeting (e.g. a Canva link)
+  slides_post_url text check (slides_post_url is null or slides_post_url ~* '^https?://\S+$'),  -- customer slides after the meeting
   version int not null default 1,
   updated_by uuid,
   updated_at timestamptz not null default now()
@@ -222,7 +224,8 @@ begin
   ws := (r ->> 'workspace_id')::uuid;
   if tg_op = 'UPDATE' and tg_table_name = 'workspace_summary' then
     r := jsonb_build_object('weekly_goal', new.weekly_goal, 'milestone', new.milestone,
-                            'milestone_date', new.milestone_date, 'blockers_decisions', new.blockers_decisions);
+                            'milestone_date', new.milestone_date, 'blockers_decisions', new.blockers_decisions,
+                            'slides_pre_url', new.slides_pre_url, 'slides_post_url', new.slides_post_url);
   end if;
   insert into activity(workspace_id, entity, actor_id, action, detail)
   values (ws,

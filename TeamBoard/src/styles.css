@@ -266,3 +266,12 @@ th { color: var(--navy); }
   .grid3 { grid-template-columns: 1fr; }
   .day { min-height: 74px; } .pill { font-size: .66rem; padding: 0 3px; } .meet-label { display: none; }
 }
+
+/* customer slides links */
+.slides-links { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.slide-box { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: .8rem 1.2rem; box-shadow: var(--shadow); border-top: 5px solid #8dbbea; }
+.slide-box:has(.open-slides) { border-top-color: var(--teal); }
+.open-slides { display: inline-block; background: var(--navy); color: #fff; text-decoration: none; font-weight: 700; padding: .5rem 1rem; border-radius: 10px; }
+.open-slides:hover { background: var(--navy-2); }
+.break { word-break: break-all; margin: 0 0 .4rem; }
+@media (max-width: 700px) { .slides-links { grid-template-columns: 1fr; } }

@@ -9,6 +9,7 @@ import { AuthScreen, Bootstrap, NotOnTeam, SetupNeeded, Splash } from './compone
 import { Header, Toasts, type View } from './components/Shell';
 import { Spinner } from './components/Chips';
 import { Summaries } from './components/Summaries';
+import { SlidesLinks } from './components/SlidesLinks';
 import { FilterBar } from './components/Filters';
 import { Roster } from './components/Roster';
 import { KanbanBoard } from './components/Board';
@@ -116,6 +117,7 @@ function Workspace({ ws, session }: { ws: string; session: Session }) {
 
             {view === 'board' && (
               <>
+                <SlidesLinks />
                 <Roster picked={filters.owner} onPick={(id) => setFilters({ ...filters, owner: filters.owner === id ? '' : id })} />
                 <FilterBar f={filters} set={setFilters} shown={filtered.length} total={board.tasks.length} />
                 {board.tasks.length === 0 ? (

@@ -165,3 +165,17 @@ describe('recurring events', () => {
     expect(await fails(A, `insert into events(workspace_id,title,start_date,recur,recur_until) values ('${ws}','x','2026-11-03','weekly','2026-11-01')`)).toBeTruthy();
   });
 });
+
+describe('customer slides links', () => {
+  it('stores http(s) links and rejects anything else (e.g. javascript:)', async () => {
+    const cur = (await as(A, `select version v from workspace_summary`))[0].v;
+    const r = await as(A, `update workspace_summary set slides_pre_url='https://www.canva.com/design/abc/view', version=${cur + 1} where version=${cur} returning slides_pre_url`);
+    expect(r[0].slides_pre_url).toBe('https://www.canva.com/design/abc/view');
+    expect(await fails(A, `update workspace_summary set slides_post_url='javascript:alert(1)', version=${cur + 2}`)).toBeTruthy();
+    expect(await fails(A, `update workspace_summary set slides_post_url='not a link', version=${cur + 2}`)).toBeTruthy();
+  });
+  it('is private to members and versioned like the other summary fields', async () => {
+    expect((await as(C, `select slides_pre_url from workspace_summary`)).length).toBe(0);
+    expect((await as(B, `update workspace_summary set slides_pre_url='https://x.com', version=1 where version=1 returning 1`)).length).toBe(0);
+  });
+});

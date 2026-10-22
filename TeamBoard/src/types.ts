@@ -107,6 +107,8 @@ export interface Summary {
   milestone: string;
   milestone_date: string | null;
   blockers_decisions: string;
+  slides_pre_url: string | null;
+  slides_post_url: string | null;
   version: number;
   updated_by: string | null;
   updated_at: string;

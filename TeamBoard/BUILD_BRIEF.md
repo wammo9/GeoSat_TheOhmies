@@ -34,6 +34,9 @@ See `config/workstreams.json`.
 - **Thursday review view:** inspect deliverables, record evidence, identify integration dependencies, explicitly carry unfinished tasks forward with a revised due date.
 - Never auto-complete tasks or change due dates when a meeting passes.
 
+## Customer slides links (added later)
+Two boxes at the top of the Board, "Customer slides: pre-meeting" and "Customer slides: post-meeting". Anyone can add, change or remove a link (e.g. to a Canva presentation); only http(s) links are accepted; changes sync live, are attributed, and warn on simultaneous edits.
+
 ## Calendar (added after the first release)
 - A **Calendar** tab, in addition to (not replacing) the Tuesday/Thursday views.
 - **Big upcoming events** are highlighted at the top: any teammate can add an event and tick "Big event"; each shows a countdown and how many linked tasks are done/overdue/blocked.
