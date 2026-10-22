@@ -108,7 +108,9 @@ export interface Summary {
   milestone_date: string | null;
   blockers_decisions: string;
   slides_working_url: string | null; // the deck being edited for the next meeting
-  slides_submitted_url: string | null; // the frozen Friday copy
+  slides_submitted_url: string | null; // an older submitted copy that was a link
+  slides_submitted_file: string | null; // the frozen Friday copy: path of the uploaded file
+  slides_submitted_file_name: string | null;
   slides_submitted_on: string | null;
   version: number;
   updated_by: string | null;
@@ -117,7 +119,9 @@ export interface Summary {
 
 export interface SlideArchive {
   id: string;
-  url: string;
+  url: string | null;
+  file_path: string | null;
+  file_name: string | null;
   submitted_on: string | null;
   created_by: string | null;
   created_at: string;

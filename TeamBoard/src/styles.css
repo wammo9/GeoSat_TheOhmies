@@ -284,3 +284,7 @@ th { color: var(--navy); }
 .past-decks ul { list-style: none; margin: .4rem 0; padding: 0; display: grid; gap: .3rem; }
 .past-decks li { display: flex; justify-content: space-between; gap: 1rem; align-items: center; flex-wrap: wrap; padding: .3rem .5rem; border-radius: 8px; } .past-decks li:nth-child(odd) { background: #f4f8fc; }
 .small-link { color: var(--navy-2); font-weight: 600; }
+.download-btn { display: inline-block; background: var(--navy); color: #fff; font-weight: 700; padding: .5rem 1rem; border-radius: 10px; border: 0; }
+.download-btn:hover:not(:disabled) { background: var(--navy-2); }
+.small-link-btn { border: 0; background: none; min-height: 0; padding: 0; color: var(--navy-2); font-weight: 600; text-decoration: underline; }
+.slide-box input[type=file] { padding: .35rem; }

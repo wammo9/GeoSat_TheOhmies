@@ -3,6 +3,7 @@ import { errMsg, supabase as sb } from './supabase';
 import type { Activity, CalEvent, SlideArchive, ColId, Comment, Evidence, Invite, Member, Person, Summary, Task, TaskDraft } from './types';
 import { addDays, nextWeekday, THURSDAY, todayDenver } from './lib/dates';
 import DEMO_SEED from '../seed/demo-tasks.json';
+import { contentTypeFor, DECK_BUCKET, storagePath } from './lib/files';
 import { colTitle, completionError, evidenceFrom, hasEvidence, noDeliverableEvidence, validateDraft } from './lib/rules';
 
 export type Live = 'connecting' | 'live' | 'offline';
@@ -401,24 +402,66 @@ export function useBoard(workspaceId: string, userId: string) {
   );
 
   // ---------------------------------------------------------------- customer slides
-  /** File the current submitted deck in the archive and replace it with a new copy (atomic, version-checked). */
+  /**
+   * Upload a new submitted deck and, in one step, file the current one in the archive.
+   * If someone else changed the slides first, nothing is replaced and the uploaded file is removed again.
+   */
   const submitSlidesCopy = useCallback(
-    (url: string, submittedOn: string, baseVersion: number): Promise<'ok' | 'conflict' | undefined> =>
+    (file: File, submittedOn: string, baseVersion: number): Promise<'ok' | 'conflict' | undefined> =>
       track(async () => {
-        const { error } = await sb.rpc('submit_slides_copy', { p_url: url, p_submitted_on: submittedOn, p_base_version: baseVersion });
-        if (error && error.code !== '40001') throw error;
+        const path = storagePath(workspaceId, file.name, crypto.randomUUID());
+        // Browsers often report an empty type for .pptx; the upload uses the file's own type, so set it explicitly.
+        const typed = new File([file], file.name, { type: contentTypeFor(file.name) });
+        const up = await sb.storage.from(DECK_BUCKET).upload(path, typed, { contentType: typed.type, upsert: false });
+        if (up.error) throw up.error;
+        const { error } = await sb.rpc('submit_slides_copy', {
+          p_url: null, p_file_path: path, p_file_name: file.name, p_submitted_on: submittedOn, p_base_version: baseVersion,
+        });
+        if (error) {
+          await sb.storage.from(DECK_BUCKET).remove([path]); // don't leave an orphan behind
+          if (error.code !== '40001') throw error;
+        }
         await refresh('workspace_summary', 'slide_archive');
         return error ? ('conflict' as const) : ('ok' as const);
       }),
-    [track, refresh],
+    [track, workspaceId, refresh],
+  );
+
+  /** A short-lived link that downloads the file (the bucket is private). */
+  const deckDownloadUrl = useCallback(
+    (path: string, fileName: string): Promise<string | undefined> =>
+      track(async () => {
+        const { data, error } = await sb.storage.from(DECK_BUCKET).createSignedUrl(path, 120, { download: fileName });
+        if (error) throw error;
+        return data.signedUrl;
+      }),
+    [track],
+  );
+
+  /** Remove the submitted deck (and its uploaded file) without filing it in the archive. */
+  const removeSubmittedDeck = useCallback(
+    (baseVersion: number, filePath: string | null): Promise<boolean> =>
+      track(async () => {
+        const r = await sb
+          .from('workspace_summary')
+          .update({ slides_submitted_url: null, slides_submitted_file: null, slides_submitted_file_name: null, slides_submitted_on: null, version: baseVersion + 1 })
+          .eq('workspace_id', workspaceId).eq('version', baseVersion).select();
+        if (r.error && r.error.code !== '40001') throw r.error;
+        if (r.error || !r.data?.length) { await refresh('workspace_summary'); throw new Error('Someone just changed the slides, so nothing was removed. The latest is shown.'); }
+        setSummary(r.data[0] as Summary);
+        if (filePath) await sb.storage.from(DECK_BUCKET).remove([filePath]);
+        return true;
+      }).then((x) => !!x),
+    [track, workspaceId, refresh],
   );
 
   const removeArchivedSlides = useCallback(
-    (id: string) =>
+    (entry: SlideArchive) =>
       track(async () => {
-        const { error } = await sb.from('slide_archive').delete().eq('id', id);
+        const { error } = await sb.from('slide_archive').delete().eq('id', entry.id);
         if (error) throw error;
-        setSlideArchive((a) => a.filter((x) => x.id !== id));
+        setSlideArchive((a) => a.filter((x) => x.id !== entry.id));
+        if (entry.file_path) await sb.storage.from(DECK_BUCKET).remove([entry.file_path]);
       }),
     [track],
   );
@@ -525,7 +568,7 @@ export function useBoard(workspaceId: string, userId: string) {
   return {
     workspaceId, userId, loading, live, liveDetail, reconnect, saving, error, setError, notice, setNotice, today, thursday,
     people, tasks, comments, activity, summary, members, invites, events, slideArchive, me, person, actorName,
-    submitSlidesCopy, removeArchivedSlides,
+    submitSlidesCopy, deckDownloadUrl, removeSubmittedDeck, removeArchivedSlides,
     createEvent, saveEvent, deleteEvent, setTaskEvent,
     createTask, saveTask, moveTask, addEvidence, addNoDeliverable, removeEvidence, carryForward, deleteTask, addComment,
     saveSummary, savePerson, addPerson, addInvite, removeInvite, removeMember, loadDemo, removeDemo, refresh,

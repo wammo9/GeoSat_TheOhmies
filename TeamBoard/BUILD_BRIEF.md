@@ -37,7 +37,7 @@ See `config/workstreams.json`.
 ## Customer slides (added later)
 The team meets Wednesdays; slides are submitted Fridays. At the top of the Board:
 - **Working deck** — the link to the deck being edited for the next Wednesday meeting (date shown automatically, plus the next Friday due date).
-- **Submitted deck** — the frozen Friday copy, with its submission date and the Wednesday meeting it's presented at. **Submit a new copy** files the previous submitted deck under **Past submitted decks** (atomic, so history is never lost); **Fix link** corrects a typo without archiving.
+- **Submitted deck** — the frozen Friday copy, **uploaded as a PowerPoint (.pptx/.ppt) or PDF file** (up to 50 MB, kept in a private Supabase Storage bucket) that any team member can download, with its submission date and the Wednesday meeting it's presented at. **Submit a new copy** files the previous submitted deck (file included) under **Past submitted decks**, atomically, so history is never lost; each past deck can be downloaded.
 Anyone can edit; only http(s) links are accepted; changes sync live and warn on simultaneous edits.
 
 ## Calendar (added after the first release)

@@ -34,9 +34,15 @@ beforeAll(async () => {
     create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true),'')::uuid $$;
     create function auth.jwt() returns jsonb language sql stable as $$ select jsonb_build_object('email', current_setting('request.jwt.claim.email', true)) $$;
     create role anon; create role authenticated; create publication supabase_realtime;
+    -- minimal stand-in for Supabase Storage so the bucket and its access rules can be tested
+    create schema storage;
+    create table storage.buckets (id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]);
+    create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text references storage.buckets(id), name text, owner uuid default auth.uid());
+    alter table storage.objects enable row level security;
+    create function storage.foldername(name text) returns text[] language sql immutable as $$ select (string_to_array(name, '/'))[1:array_length(string_to_array(name, '/'), 1) - 1] $$;
   `);
   await db.exec(readFileSync(new URL('./schema.sql', import.meta.url), 'utf8'));
-  await db.exec(`grant usage on schema public, auth to authenticated; grant all on all tables in schema public to authenticated; grant usage on all sequences in schema public to authenticated;`);
+  await db.exec(`grant usage on schema public, auth, storage to authenticated; grant all on all tables in schema public to authenticated; grant all on all tables in schema storage to authenticated; grant usage on all sequences in schema public to authenticated;`);
 });
 
 describe('workspace setup and privacy', () => {
@@ -179,27 +185,52 @@ describe('customer slides (working deck, submitted deck, past decks)', () => {
     expect((await as(C, `select slides_working_url from workspace_summary`)).length).toBe(0);
     expect((await as(B, `update workspace_summary set slides_working_url='https://x.com', version=1 where version=1 returning 1`)).length).toBe(0);
   });
-  it('submitting a first copy sets the submitted deck without archiving anything', async () => {
-    await as(A, `select submit_slides_copy('https://canva.com/design/week1/view', '2026-10-23', ${await ver()})`);
-    const r = (await as(A, `select slides_submitted_url, slides_submitted_on::text d from workspace_summary`))[0];
-    expect(r).toEqual({ slides_submitted_url: 'https://canva.com/design/week1/view', d: '2026-10-23' });
+  const FILE = (n: string) => `${ws}/${n}`;
+  it('submitting a first copy (an uploaded file) sets the submitted deck without archiving anything', async () => {
+    await as(A, `select submit_slides_copy(null, '${FILE('w1-deck.pptx')}', 'Week 1.pptx', '2026-10-23', ${await ver()})`);
+    const r = (await as(A, `select slides_submitted_file f, slides_submitted_file_name n, slides_submitted_url u, slides_submitted_on::text d from workspace_summary`))[0];
+    expect(r).toEqual({ f: FILE('w1-deck.pptx'), n: 'Week 1.pptx', u: null, d: '2026-10-23' });
     expect((await as(A, `select count(*)::int n from slide_archive`))[0].n).toBe(0);
   });
-  it('submitting a new copy files the previous one in the archive, atomically', async () => {
-    await as(B, `select submit_slides_copy('https://canva.com/design/week2/view', '2026-10-30', ${await ver()})`);
-    const arch = await as(A, `select url, submitted_on::text d, created_by from slide_archive`);
-    expect(arch).toEqual([{ url: 'https://canva.com/design/week1/view', d: '2026-10-23', created_by: B }]);
-    expect((await as(A, `select slides_submitted_url from workspace_summary`))[0].slides_submitted_url).toBe('https://canva.com/design/week2/view');
+  it('submitting a new copy files the previous file in the archive, atomically', async () => {
+    await as(B, `select submit_slides_copy(null, '${FILE('w2-deck.pptx')}', 'Week 2.pptx', '2026-10-30', ${await ver()})`);
+    const arch = await as(A, `select url, file_path, file_name, submitted_on::text d, created_by from slide_archive`);
+    expect(arch).toEqual([{ url: null, file_path: FILE('w1-deck.pptx'), file_name: 'Week 1.pptx', d: '2026-10-23', created_by: B }]);
+    expect((await as(A, `select slides_submitted_file f from workspace_summary`))[0].f).toBe(FILE('w2-deck.pptx'));
   });
-  it('refuses a stale submit, a bad link, and outsiders, leaving the archive unchanged', async () => {
+  it('still accepts a link copy, and archives an older link copy too', async () => {
+    await as(A, `select submit_slides_copy('https://canva.com/design/old/view', null, null, '2026-11-06', ${await ver()})`);
+    await as(A, `select submit_slides_copy(null, '${FILE('w4-deck.pptx')}', 'Week 4.pptx', '2026-11-13', ${await ver()})`);
+    const arch = await as(A, `select url, file_path from slide_archive order by submitted_on`);
+    expect(arch.map((r: any) => r.url ?? r.file_path)).toEqual([FILE('w1-deck.pptx'), FILE('w2-deck.pptx'), 'https://canva.com/design/old/view']);
+  });
+  it('refuses a stale submit, bad input, a foreign folder and outsiders, leaving the archive unchanged', async () => {
     const v = await ver();
-    expect((await fails(A, `select submit_slides_copy('https://canva.com/design/week3/view', '2026-11-06', ${v - 1})`))?.code).toBe('40001');
-    expect(await fails(A, `select submit_slides_copy('javascript:alert(1)', '2026-11-06', ${v})`)).toBeTruthy();
-    expect(await fails(C, `select submit_slides_copy('https://evil.com/x', '2026-11-06', ${v})`)).toBeTruthy();
-    expect((await as(A, `select count(*)::int n from slide_archive`))[0].n).toBe(1);
+    const n0 = (await as(A, `select count(*)::int n from slide_archive`))[0].n;
+    expect((await fails(A, `select submit_slides_copy(null, '${FILE('x.pptx')}', 'x.pptx', '2026-11-20', ${v - 1})`))?.code).toBe('40001');
+    expect(await fails(A, `select submit_slides_copy('javascript:alert(1)', null, null, '2026-11-20', ${v})`)).toBeTruthy();
+    expect(await fails(A, `select submit_slides_copy('https://x.com', '${FILE('x.pptx')}', 'x', '2026-11-20', ${v})`)).toBeTruthy(); // both
+    expect(await fails(A, `select submit_slides_copy(null, null, null, '2026-11-20', ${v})`)).toBeTruthy(); // neither
+    expect(await fails(A, `select submit_slides_copy(null, '99999999-0000-0000-0000-000000000000/x.pptx', 'x', '2026-11-20', ${v})`)).toBeTruthy();
+    expect(await fails(C, `select submit_slides_copy(null, '${FILE('x.pptx')}', 'x', '2026-11-20', ${v})`)).toBeTruthy();
+    expect((await as(A, `select count(*)::int n from slide_archive`))[0].n).toBe(n0);
     expect((await as(C, `select count(*)::int n from slide_archive`))[0].n).toBe(0);
   });
+  it('keeps slide decks in a private bucket that only workspace members can use', async () => {
+    const bucket = (await as(A, `select public, file_size_limit::text l, allowed_mime_types from storage.buckets where id='slide-decks'`))[0];
+    expect(bucket.public).toBe(false);
+    expect(bucket.l).toBe('52428800');
+    expect(bucket.allowed_mime_types).toContain('application/vnd.openxmlformats-officedocument.presentationml.presentation');
+    await as(B, `insert into storage.objects(bucket_id, name) values ('slide-decks', '${FILE('w1-deck.pptx')}')`);
+    expect((await as(A, `select count(*)::int n from storage.objects`))[0].n).toBe(1); // another member can read it
+    expect((await as(C, `select count(*)::int n from storage.objects`))[0].n).toBe(0); // an outsider cannot
+    expect(await fails(C, `insert into storage.objects(bucket_id, name) values ('slide-decks', '${FILE('evil.pptx')}')`)).toBeTruthy();
+    expect(await fails(A, `insert into storage.objects(bucket_id, name) values ('slide-decks', 'not-a-workspace/evil.pptx')`)).toBeTruthy();
+    expect((await as(C, `delete from storage.objects returning id`)).length).toBe(0);
+    expect((await as(A, `delete from storage.objects returning id`)).length).toBe(1); // members can delete (used when removing a deck)
+  });
   it('lets members remove a mistaken archive entry', async () => {
-    expect((await as(B, `delete from slide_archive returning id`)).length).toBe(1);
+    expect((await as(B, `delete from slide_archive where id = (select id from slide_archive limit 1) returning id`)).length).toBe(1);
+    expect((await as(A, `select count(*)::int n from slide_archive`))[0].n).toBe(2);
   });
 });
