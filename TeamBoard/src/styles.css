@@ -288,3 +288,7 @@ th { color: var(--navy); }
 .download-btn:hover:not(:disabled) { background: var(--navy-2); }
 .small-link-btn { border: 0; background: none; min-height: 0; padding: 0; color: var(--navy-2); font-weight: 600; text-decoration: underline; }
 .slide-box input[type=file] { padding: .35rem; }
+
+.update-banner { background: #fff4cc; border: 2px solid #d9a400; border-radius: 12px; padding: .7rem 1rem; }
+.update-banner ul { margin: .4rem 0 0; padding-left: 1.2rem; }
+.crash { border: 2px solid var(--danger); }

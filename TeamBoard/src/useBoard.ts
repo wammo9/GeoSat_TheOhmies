@@ -34,6 +34,7 @@ export function useBoard(workspaceId: string, userId: string) {
   const [loading, setLoading] = useState(true);
   const [live, setLive] = useState<Live>('connecting');
   const [liveDetail, setLiveDetail] = useState('');
+  const [dbUpdates, setDbUpdates] = useState<{ file: string; why: string }[]>([]);
   const [reconnects, setReconnects] = useState(0);
   const [saving, setSaving] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -69,7 +70,8 @@ export function useBoard(workspaceId: string, userId: string) {
         case 'workspace_summary': setSummary(rows[0] ?? null); break;
         case 'members': setMembers(rows); break;
         case 'invites': setInvites(rows); break;
-        case 'events': setEvents(rows); break;
+        // tolerate a database that hasn't had the recurring-events upgrade yet
+        case 'events': setEvents(rows.map((r) => ({ ...r, recur: r.recur ?? 'none', recur_until: r.recur_until ?? null, recur_skip: r.recur_skip ?? [] }))); break;
         case 'slide_archive': setSlideArchive(rows); break;
       }
     },
@@ -129,6 +131,24 @@ export function useBoard(workspaceId: string, userId: string) {
       sb.removeChannel(ch);
     };
   }, [workspaceId, refresh, reconnects]);
+
+  // Look for one-time database upgrades that haven't been run yet, so the app can say so instead of misbehaving.
+  useEffect(() => {
+    const missing = /does not exist|schema cache|could not find|column/i;
+    const probes: [string, string, () => PromiseLike<{ error: { message: string } | null }>][] = [
+      ['db/add-calendar.sql', 'Calendar events and task start dates', () => sb.from('tasks').select('start_date,event_id').limit(0)],
+      ['db/add-recurring.sql', 'Repeating events', () => sb.from('events').select('recur,recur_until,recur_skip').limit(0)],
+      ['db/add-slides.sql', 'Customer slides and file uploads', async () => {
+        const a = await sb.from('workspace_summary').select('slides_working_url,slides_submitted_file').limit(0);
+        return a.error ? a : sb.from('slide_archive').select('file_path').limit(0);
+      }],
+    ];
+    let live = true;
+    Promise.all(probes.map(async ([file, why, run]) => {
+      try { const { error } = await run(); return error && missing.test(error.message) ? { file, why } : null; } catch { return null; }
+    })).then((r) => live && setDbUpdates(r.filter((x): x is { file: string; why: string } => !!x)));
+    return () => { live = false; };
+  }, [workspaceId]);
 
   // ---------------------------------------------------------------- helpers
   const track = useCallback(async <T,>(fn: () => Promise<T>): Promise<T | undefined> => {
@@ -566,7 +586,7 @@ export function useBoard(workspaceId: string, userId: string) {
   const thursday = nextWeekday(today, THURSDAY);
 
   return {
-    workspaceId, userId, loading, live, liveDetail, reconnect, saving, error, setError, notice, setNotice, today, thursday,
+    workspaceId, userId, loading, live, liveDetail, reconnect, dbUpdates, saving, error, setError, notice, setNotice, today, thursday,
     people, tasks, comments, activity, summary, members, invites, events, slideArchive, me, person, actorName,
     submitSlidesCopy, deckDownloadUrl, removeSubmittedDeck, removeArchivedSlides,
     createEvent, saveEvent, deleteEvent, setTaskEvent,

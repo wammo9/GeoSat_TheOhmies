@@ -20,6 +20,7 @@ import { TuesdayPlanning, ThursdayReview } from './components/Planning';
 import { AllTasks } from './components/AllTasks';
 import { CalendarView } from './components/Calendar';
 import { Team } from './components/Team';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 export default function App() {
   return configured ? <Authed /> : <SetupNeeded />;
@@ -107,12 +108,19 @@ function Workspace({ ws, session }: { ws: string; session: Session }) {
           <Spinner label="Loading the team board…" />
         ) : (
           <>
+            {board.dbUpdates.length > 0 && (
+              <div className="update-banner" role="alert">
+                <strong>Your database needs a one-time update.</strong> Some new features won’t work until it’s run. In Supabase, open <em>SQL Editor</em>, paste the file and click Run:
+                <ul>{board.dbUpdates.map((u) => <li key={u.file}><code>{u.file}</code> — {u.why}</li>)}</ul>
+              </div>
+            )}
             {demoCount > 0 && (
               <div className="demo-banner" role="note">
                 <strong>DEMO DATA</strong> — {demoCount} example task{demoCount === 1 ? ' is' : 's are'} on the board, marked DEMO. They are not real team work.
                 <button className="small" onClick={() => setView('team')}>Manage demo data</button>
               </div>
             )}
+            <ErrorBoundary resetKey={view}>
             {view !== 'team' && view !== 'calendar' && <Summaries />}
 
             {view === 'board' && (
@@ -146,6 +154,7 @@ function Workspace({ ws, session }: { ws: string; session: Session }) {
               </>
             )}
             {view === 'team' && <Team />}
+            </ErrorBoundary>
           </>
         )}
       </main>
