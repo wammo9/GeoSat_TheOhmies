@@ -67,7 +67,7 @@ function ReviewRow({ t }: { t: Task }) {
       {t.blocked && <p className="card-blocker">Blocked: {t.blocker}</p>}
       <div className="review-cols">
         <div>
-          <h4>Evidence</h4>
+          <h4>Deliverable &amp; where it is</h4>
           <EvidenceList task={t} />
           <AddEvidence task={t} />
         </div>
@@ -83,8 +83,8 @@ function ReviewRow({ t }: { t: Task }) {
       </div>
       <div className="row">
         {t.col !== 'thursday' && <button className="small" onClick={() => move(t, 'thursday')}>Move to Thursday Review</button>}
-        <button className="primary small" onClick={() => move(t, 'completed')} title={hasEvidence(t.evidence) ? '' : 'Evidence is required — you’ll be asked for it'}>
-          Mark complete{hasEvidence(t.evidence) ? '' : ' (needs evidence)'}
+        <button className="primary small" onClick={() => move(t, 'completed')} title={hasEvidence(t.evidence) ? '' : 'You’ll be asked whether there was a deliverable'}>
+          Mark complete
         </button>
         <button className="small" onClick={() => setCarry(!carry)} aria-expanded={carry}>Carry forward…</button>
       </div>
@@ -108,7 +108,7 @@ export function ThursdayReview() {
     <div className="stack">
       <section className="panel">
         <h2>Thursday review — {formatDate(nextWeekday(board.today, THURSDAY))}</h2>
-        <p className="muted">Inspect each deliverable, record evidence, note integration dependencies, then complete the task or explicitly carry it forward with a revised due date. Due dates and columns never change on their own.</p>
+        <p className="muted">Inspect each deliverable, record where each deliverable is, note integration dependencies, then complete the task or explicitly carry it forward with a revised due date. Due dates and columns never change on their own.</p>
         {withDeps.length > 0 && (
           <details className="deps">
             <summary>Integration dependencies across the board ({withDeps.length})</summary>

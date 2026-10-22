@@ -24,7 +24,7 @@
     {
       "id": "completed",
       "title": "Completed",
-      "requires": "evidence"
+      "requires": "deliverable-check"
     }
   ],
   "blockedAppliesTo": [

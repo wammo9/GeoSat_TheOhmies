@@ -122,8 +122,8 @@ export function TaskDetail({ taskId, onClose }: { taskId: string; onClose: () =>
         {dirty && message && <p className="form-err" role="alert">{message}</p>}
 
         <section>
-          <h3>Evidence & results</h3>
-          <p className="muted small-text">Required before this task can be Completed. A link, or a written reference to test data, a schematic, code or a reviewed document.</p>
+          <h3>Deliverable & results</h3>
+          <p className="muted small-text">Where the finished work lives: a link or one sentence. Moving a task to Completed asks whether there was a deliverable; if there was, it must say what and where.</p>
           <EvidenceList task={live} />
           <AddEvidence task={live} />
         </section>

@@ -30,6 +30,13 @@ export function evidenceFrom(text: string, by: string): Evidence {
   };
 }
 
+export const NO_DELIVERABLE_TEXT = 'No deliverable for this task.';
+
+/** Recorded when a task is completed and the team says there was no deliverable. */
+export function noDeliverableEvidence(by: string): Evidence {
+  return { type: 'none', value: NO_DELIVERABLE_TEXT, added_by: by, added_at: new Date().toISOString() };
+}
+
 export type DraftErrors = Partial<Record<keyof TaskDraft, string>>;
 
 /** Required fields for creating / saving a task. */
@@ -48,5 +55,5 @@ export function validateDraft(d: Partial<TaskDraft>): DraftErrors {
 export function completionError(t: Pick<Task, 'evidence'>): string | null {
   return hasEvidence(t.evidence)
     ? null
-    : 'Add evidence (a link or a written reference to a result) before marking this task Completed.';
+    : 'Say whether there was a deliverable (and if so, what it was and where it is) before marking this task Completed.';
 }

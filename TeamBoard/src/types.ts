@@ -15,7 +15,7 @@ export interface Person {
 }
 
 export interface Evidence {
-  type: 'link' | 'text';
+  type: 'link' | 'text' | 'none'; // 'none' = completed with no deliverable
   value: string;
   added_by?: string;
   added_at: string;

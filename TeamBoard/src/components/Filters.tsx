@@ -10,7 +10,7 @@ export function FilterBar({ f, set, shown, total }: { f: Filters; set: (f: Filte
   return (
     <form className="filters" role="search" aria-label="Filter tasks" onSubmit={(e) => e.preventDefault()}>
       <label className="grow">Search
-        <input type="search" value={f.q} placeholder="Title, deliverable, evidence…" onChange={(e) => up({ q: e.target.value })} />
+        <input type="search" value={f.q} placeholder="Title, deliverable, notes…" onChange={(e) => up({ q: e.target.value })} />
       </label>
       <label>Owner
         <select value={f.owner} onChange={(e) => up({ owner: e.target.value })}>

@@ -4,14 +4,14 @@ import { addDays, nextWeekday, todayDenver, TUESDAY, THURSDAY, weekday } from '.
 import { EMPTY_FILTERS, matches } from './filters';
 import { threeWayMerge, toDraft } from './merge';
 import { buildRoster } from './roster';
-import { completionError, evidenceFrom, hasEvidence, isOverdue, validateDraft } from './rules';
+import { completionError, evidenceFrom, hasEvidence, isOverdue, noDeliverableEvidence, validateDraft } from './rules';
 import { textOn } from './color';
 
 const person = (id: string, initial: string): Person => ({
   id, workspace_id: 'w', initial, name: initial, color: '#7C4DBE', role: null, focus: null, user_id: null, active: true, version: 1,
 });
 const task = (o: Partial<Task>): Task => ({
-  id: 't', workspace_id: 'w', title: 'T', owner_id: 'J', supporters: [], workstream: 'Hardware / PCB',
+  id: 't', workspace_id: 'w', title: 'T', owner_id: 'J', supporters: [], workstream: 'Hardware',
   due_date: '2026-10-22', deliverable: 'd', priority: 'Medium', col: 'backlog', blocked: false, blocker: null,
   dependencies: null, evidence: [], is_demo: false, version: 1, updated_by: null, updated_at: '', created_at: '', ...o,
 });
@@ -42,13 +42,16 @@ describe('rules', () => {
     expect(validateDraft({ ...base, blocked: true }).blocker).toBeTruthy();
     expect(validateDraft({ ...base, blocked: true, blocker: 'waiting' }).blocker).toBeUndefined();
   });
-  it('requires evidence to complete', () => {
+  it('requires a deliverable note (or an explicit "no deliverable") to complete', () => {
     expect(completionError({ evidence: [] })).toBeTruthy();
     expect(completionError({ evidence: [evidenceFrom('  ', 'u')] })).toBeTruthy();
     expect(completionError({ evidence: [evidenceFrom('https://x.dev/r', 'u')] })).toBeNull();
     expect(hasEvidence([evidenceFrom('Bench test log, run 4', 'u')])).toBe(true);
     expect(evidenceFrom('https://a.b/c', 'u').type).toBe('link');
     expect(evidenceFrom('Reviewed schematic v3', 'u').type).toBe('text');
+    // "No deliverable" is an explicit, recorded answer that also allows completion
+    expect(completionError({ evidence: [noDeliverableEvidence('u')] })).toBeNull();
+    expect(noDeliverableEvidence('u').type).toBe('none');
   });
   it('overdue only when unfinished and past due; never auto-changes', () => {
     expect(isOverdue(task({ due_date: '2026-10-20' }), '2026-10-21')).toBe(true);
@@ -65,7 +68,7 @@ describe('filters', () => {
     expect(m({})).toBe(true);
     expect(m({ owner: 'J' })).toBe(true);
     expect(m({ owner: 'A' })).toBe(false);
-    expect(m({ workstream: 'GUI / Data' })).toBe(false);
+    expect(m({ workstream: 'GUI' })).toBe(false);
     expect(m({ priority: 'High' })).toBe(true);
     expect(m({ priority: 'Low' })).toBe(false);
     expect(m({ blocked: 'blocked' })).toBe(true);

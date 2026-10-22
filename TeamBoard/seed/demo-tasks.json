@@ -22,7 +22,7 @@
     {
       "title": "Display sample sensor packets in the GUI",
       "owner": "W",
-      "workstream": "GUI / Data",
+      "workstream": "GUI",
       "priority": "Medium",
       "dueOffsetDays": 4,
       "deliverable": "GUI table showing parsed sample packets",
@@ -31,7 +31,7 @@
     {
       "title": "Complete the power schematic",
       "owner": "M",
-      "workstream": "Hardware / PCB",
+      "workstream": "Power",
       "priority": "High",
       "dueOffsetDays": -1,
       "deliverable": "Reviewed schematic PDF",
@@ -41,7 +41,7 @@
     {
       "title": "Implement RF packet exchange",
       "owner": "T",
-      "workstream": "Firmware / RF",
+      "workstream": "RF",
       "priority": "Critical",
       "dueOffsetDays": 7,
       "deliverable": "Two boards exchanging packets, logged",
@@ -50,7 +50,7 @@
     {
       "title": "Place Rev 2 PCB components",
       "owner": "B",
-      "workstream": "Hardware / PCB",
+      "workstream": "Hardware",
       "priority": "Medium",
       "dueOffsetDays": 9,
       "deliverable": "Placement screenshot and DRC report",

@@ -3,7 +3,7 @@ import { errMsg, supabase as sb } from './supabase';
 import type { Activity, ColId, Comment, Evidence, Invite, Member, Person, Summary, Task, TaskDraft } from './types';
 import { addDays, nextWeekday, THURSDAY, todayDenver } from './lib/dates';
 import DEMO_SEED from '../seed/demo-tasks.json';
-import { colTitle, completionError, evidenceFrom, hasEvidence, validateDraft } from './lib/rules';
+import { colTitle, completionError, evidenceFrom, hasEvidence, noDeliverableEvidence, validateDraft } from './lib/rules';
 
 export type Live = 'connecting' | 'live' | 'offline';
 
@@ -174,7 +174,7 @@ export function useBoard(workspaceId: string, userId: string) {
     async (d: TaskDraft, demo = false): Promise<Task | undefined> => {
       const errs = validateDraft(d);
       if (Object.keys(errs).length) throw new Error(Object.values(errs)[0]);
-      if (d.col === 'completed') throw new Error('New tasks cannot start as Completed; add evidence first.');
+      if (d.col === 'completed') throw new Error('New tasks cannot start as Completed; say whether there was a deliverable first.');
       return track(async () => {
         const { data, error } = await sb
           .from('tasks')
@@ -206,7 +206,7 @@ export function useBoard(workspaceId: string, userId: string) {
     [track, updateTask],
   );
 
-  /** Move between columns. Returns 'needs-evidence' when Completed is blocked by the evidence rule. */
+  /** Move between columns. Returns 'needs-evidence' when the "was there a deliverable?" question still has to be answered. */
   const moveTask = useCallback(
     async (task: Task, col: ColId): Promise<'ok' | 'needs-evidence' | 'conflict' | 'error'> => {
       if (task.col === col) return 'ok';
@@ -237,7 +237,7 @@ export function useBoard(workspaceId: string, userId: string) {
           if (!cur) throw new Error('This task was deleted by someone else.');
           const next = fn(cur.evidence);
           if (cur.col === 'completed' && !hasEvidence(next))
-            throw new Error('A completed task must keep at least one piece of evidence. Reopen it first.');
+            throw new Error('A completed task must keep its deliverable note. Reopen it first.');
           const r = await updateTask(taskId, cur.version, { evidence: next });
           if (r.ok) return r.task;
         }
@@ -251,6 +251,14 @@ export function useBoard(workspaceId: string, userId: string) {
       if (!text.trim()) { setError('Enter a link or a written reference.'); return Promise.resolve(undefined); }
       const ev = evidenceFrom(text, userId);
       return changeEvidence(taskId, (list) => [...list, ev]);
+    },
+    [changeEvidence, userId],
+  );
+
+  const addNoDeliverable = useCallback(
+    (taskId: string) => {
+      const ev = noDeliverableEvidence(userId);
+      return changeEvidence(taskId, (list) => (list.some((e) => e.type === 'none') ? list : [...list, ev]));
     },
     [changeEvidence, userId],
   );
@@ -416,7 +424,7 @@ export function useBoard(workspaceId: string, userId: string) {
   return {
     workspaceId, userId, loading, live, saving, error, setError, notice, setNotice, today, thursday,
     people, tasks, comments, activity, summary, members, invites, me, person, actorName,
-    createTask, saveTask, moveTask, addEvidence, removeEvidence, carryForward, deleteTask, addComment,
+    createTask, saveTask, moveTask, addEvidence, addNoDeliverable, removeEvidence, carryForward, deleteTask, addComment,
     saveSummary, savePerson, addPerson, addInvite, removeInvite, removeMember, loadDemo, removeDemo, refresh,
   };
 }

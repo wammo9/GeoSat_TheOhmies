@@ -21,7 +21,7 @@ Fields: title, one accountable owner, optional supporting teammates, workstream,
 - "Blocked" is a flag usable in any active column, not a column.
 - Overdue tasks are highlighted without relying on color alone (icon + "Overdue" text).
 - Creating a task requires title, owner, due date, deliverable.
-- Moving to Completed requires evidence (a link or written reference: test data, schematic, code, reviewed doc). Completed tasks can be reopened.
+- Moving to Completed asks "Was there a deliverable?" If no, the task completes with a "no deliverable" note. If yes, the person must write one sentence saying what it was and where it is (a link also works). Completed tasks can be reopened.
 
 ## Team members (editable profiles, consistent colors, always show initials)
 See `config/team.json`.

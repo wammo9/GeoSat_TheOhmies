@@ -41,7 +41,7 @@ Not covered: a hosted project, email confirmation flow, other browsers/devices, 
 Open the site in two browsers signed in as two different teammates, then:
 1. Create a task in A → appears in B without refresh.
 2. Drag it to another column in B → A updates.
-3. Try Completed with no evidence → blocked; add a link → allowed; Reopen works.
+3. Move a task to Completed → it asks "Was there a deliverable?"; answering Yes requires a what-and-where sentence, No completes with a note; Reopen works.
 4. Edit the same task's title in both, save in A then B → B gets the conflict dialog and nothing is silently overwritten. Edit *different* fields → merged automatically.
 5. Edit the weekly goal in both → second saver is warned.
 6. Sign out and back in → data still there. Sign in as a non-invited account → "not on this team".
@@ -50,7 +50,7 @@ Open the site in two browsers signed in as two different teammates, then:
 
 - **Columns / moves:** Backlog, Tuesday Commitments, In Progress, Thursday Review, Completed. Drag and drop (mouse, touch) plus a "Move to" menu on every card and in the detail panel.
 - **Blocked** is a flag (⛔ Blocked, needs a description), allowed in any column except Completed. Completing a task clears it. **Overdue** shows a dashed border, a ⚠ icon, the word "Overdue", and underlined date — not color alone.
-- **Required fields:** title, one owner, due date, deliverable (form and database). **Evidence required** to enter Completed (UI prompt plus a database constraint). Reopen from the panel.
+- **Required fields:** title, one owner, due date, deliverable (form and database). **Completing a task** asks whether there was a deliverable: *No* records "no deliverable"; *Yes* requires a one-sentence what-and-where note (stored with the task and enforced by a database constraint). Reopen from the panel.
 - **Tuesday planning:** review all unfinished work (overdue first) and commit tasks for Thursday. **Thursday review:** inspect deliverables, add evidence, record integration dependencies, complete, or *explicitly* carry forward with a revised due date (moves to Backlog, leaves a comment). Nothing changes automatically when a meeting passes.
 - **Roster** is computed from live tasks. **Filters:** owner, workstream, due, priority, blocked, search. **All tasks** keeps old unfinished work visible.
 - **Collaboration:** Supabase Realtime re-reads changed tables; visible Live/Offline and Saving indicators; error toasts. Every task change is logged with who and when (detail panel → Activity).
