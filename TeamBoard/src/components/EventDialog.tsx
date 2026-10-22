@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
-import type { CalEvent, EventKind } from '../types';
-import { KINDS, eventEnd } from '../lib/calendar';
+import type { CalEvent, EventKind, Recur } from '../types';
+import { KINDS, RECURS, eventEnd, recurLabel } from '../lib/calendar';
 import { formatDate, formatStamp } from '../lib/dates';
 import { isOpen } from '../lib/rules';
 import { Modal } from './Shell';
@@ -10,19 +10,21 @@ import { errMsg } from '../supabase';
 
 interface Draft {
   title: string; kind: EventKind; start_date: string; end_date: string; description: string; is_major: boolean;
+  recur: Recur; recur_until: string;
 }
 
 const toDraft = (e: CalEvent): Draft => ({
   title: e.title, kind: e.kind, start_date: e.start_date, end_date: e.end_date ?? '', description: e.description ?? '', is_major: e.is_major,
+  recur: e.recur, recur_until: e.recur_until ?? '',
 });
 
-export function EventDialog({ eventId, date, onClose }: { eventId?: string; date?: string; onClose: () => void }) {
+export function EventDialog({ eventId, date, occurrence, onClose }: { eventId?: string; date?: string; occurrence?: string; onClose: () => void }) {
   const { board, openTask } = useUI();
   const existing = eventId ? board.events.find((e) => e.id === eventId) : undefined;
   const [base, setBase] = useState<CalEvent | undefined>(existing);
   const [d, setD] = useState<Draft>(
     existing ? toDraft(existing)
-      : { title: '', kind: 'meeting', start_date: date ?? board.today, end_date: '', description: '', is_major: false },
+      : { title: '', kind: 'meeting', start_date: date ?? board.today, end_date: '', description: '', is_major: false, recur: 'none', recur_until: '' },
   );
   const initialLinked = useMemo(() => new Set(board.tasks.filter((t) => t.event_id === eventId).map((t) => t.id)), []); // eslint-disable-line react-hooks/exhaustive-deps
   const [linked, setLinked] = useState<Set<string>>(initialLinked);
@@ -45,6 +47,7 @@ export function EventDialog({ eventId, date, onClose }: { eventId?: string; date
     if (!d.title.trim()) e.title = 'A title is required.';
     if (!d.start_date) e.start_date = 'A start date is required.';
     if (d.end_date && d.start_date && d.end_date < d.start_date) e.end_date = 'The end date cannot be before the start date.';
+    if (d.recur !== 'none' && d.recur_until && d.recur_until < d.start_date) e.recur_until = 'The repeat end date cannot be before the start date.';
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -65,6 +68,8 @@ export function EventDialog({ eventId, date, onClose }: { eventId?: string; date
     const fields = {
       title: d.title.trim(), kind: d.kind, start_date: d.start_date, end_date: d.end_date || null,
       description: d.description.trim() || null, is_major: d.is_major,
+      recur: d.recur, recur_until: d.recur !== 'none' && d.recur_until ? d.recur_until : null,
+      recur_skip: base?.recur_skip ?? [],
     };
     try {
       let id: string;
@@ -83,6 +88,17 @@ export function EventDialog({ eventId, date, onClose }: { eventId?: string; date
     } catch (err) {
       setFail(errMsg(err));
     }
+  }
+
+  async function changeSkips(next: string[]) {
+    if (!base) return;
+    setFail('');
+    try {
+      const r = await board.saveEvent(base.id, base.version, { recur_skip: next });
+      if (!r) return;
+      if (r.status === 'ok') { setBase(r.event); return; }
+      if (r.status === 'conflict') setConflict(r.latest); else setFail('This event was deleted by someone else.');
+    } catch (err) { setFail(errMsg(err)); }
   }
 
   const set = (p: Partial<Draft>) => { setD({ ...d, ...p }); setErrors({}); };
@@ -110,6 +126,22 @@ export function EventDialog({ eventId, date, onClose }: { eventId?: string; date
             <input type="date" value={d.end_date} min={d.start_date || undefined} onChange={(e) => set({ end_date: e.target.value })} aria-invalid={!!errors.end_date} />
             {err('end_date')}
           </label>
+        </div>
+        <div className="grid3">
+          <label>Repeats
+            <select value={d.recur} onChange={(e) => set({ recur: e.target.value as Recur })}>
+              {RECURS.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
+            </select>
+          </label>
+          {d.recur !== 'none' && (
+            <label>Repeat until <span className="muted">(optional)</span>
+              <input type="date" value={d.recur_until} min={d.start_date || undefined} onChange={(e) => set({ recur_until: e.target.value })} aria-invalid={!!errors.recur_until} />
+              {err('recur_until')}
+            </label>
+          )}
+          {d.recur !== 'none' && d.start_date && (
+            <p className="muted small-text recur-hint">{recurLabel({ start_date: d.start_date, recur: d.recur, recur_until: d.recur_until || null })}. Edits apply to every repeat. Monthly repeats on the 29th–31st land on the month’s last day when needed.</p>
+          )}
         </div>
         <label className="check">
           <input type="checkbox" checked={d.is_major} onChange={(e) => set({ is_major: e.target.checked })} />
@@ -141,6 +173,24 @@ export function EventDialog({ eventId, date, onClose }: { eventId?: string; date
             {candidates.length === 0 && <li className="muted">No matching tasks.</li>}
           </ul>
         </fieldset>
+
+        {base && base.recur !== 'none' && (
+          <div className="recur-box">
+            {occurrence && !base.recur_skip.includes(occurrence) && (
+              <div className="row">
+                <span>This repeat is on <strong>{formatDate(occurrence)}</strong>.</span>
+                <button type="button" onClick={() => changeSkips([...base.recur_skip, occurrence])}>Skip just this date</button>
+              </div>
+            )}
+            {base.recur_skip.length > 0 && (
+              <p className="small-text">Skipped dates:{' '}
+                {[...base.recur_skip].sort().map((s) => (
+                  <span key={s} className="tag">{formatDate(s)} <button type="button" className="link" onClick={() => changeSkips(base.recur_skip.filter((x) => x !== s))}>restore</button></span>
+                ))}
+              </p>
+            )}
+          </div>
+        )}
 
         {conflict && (
           <div className="conflict-note" role="alert">

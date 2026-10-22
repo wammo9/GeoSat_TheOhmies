@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { CalEvent, Task } from '../types';
-import { bar, eachDay, eventEnd, kindInfo, taskSpan, weekStart } from '../lib/calendar';
+import { bar, eachDay, kindInfo, occurrences, taskSpan, weekStart } from '../lib/calendar';
 import { addDays, formatDate, weekday } from '../lib/dates';
 import { isOverdue } from '../lib/rules';
 import { OwnerChip } from './Chips';
@@ -10,7 +10,7 @@ type Group = 'none' | 'owner' | 'workstream';
 const LABEL_W = 230;
 const DAY_PX: Record<number, number> = { 4: 34, 8: 20, 12: 13 };
 
-export function Timeline({ tasks, showCompleted, onOpenEvent }: { tasks: Task[]; showCompleted: boolean; onOpenEvent: (id: string) => void }) {
+export function Timeline({ tasks, showCompleted, onOpenEvent }: { tasks: Task[]; showCompleted: boolean; onOpenEvent: (id: string, occurrence: string) => void }) {
   const { board, openTask } = useUI();
   const [weeks, setWeeks] = useState(8);
   const [offset, setOffset] = useState(0); // weeks from the current week
@@ -29,7 +29,10 @@ export function Timeline({ tasks, showCompleted, onOpenEvent }: { tasks: Task[];
     .filter((x) => x.b)
     .sort((a, b) => a.span.start.localeCompare(b.span.start) || a.span.end.localeCompare(b.span.end));
   const outside = visibleTasks.length - placed.length;
-  const events = board.events.filter((e) => bar(e.start_date, eventEnd(e), winStart, days));
+  const eventRows = board.events
+    .map((e) => ({ e, occs: occurrences(e, winStart, winEnd) }))
+    .filter((r) => r.occs.length > 0)
+    .sort((a, b) => a.occs[0].start.localeCompare(b.occs[0].start));
 
   const groups = useMemo(() => {
     if (group === 'none') return [{ key: 'all', label: '', rows: placed }];
@@ -110,24 +113,26 @@ export function Timeline({ tasks, showCompleted, onOpenEvent }: { tasks: Task[];
             </div>
           </div>
 
-          {events.length > 0 && (
+          {eventRows.length > 0 && (
             <>
               <div className="g-group">Calendar events</div>
-              {events.map((e: CalEvent) => {
-                const b = bar(e.start_date, eventEnd(e), winStart, days)!;
-                const desc = `${e.title}: ${formatDate(e.start_date)}${e.end_date ? ` to ${formatDate(e.end_date)}` : ''}${e.is_major ? ', big event' : ''}`;
-                return (
-                  <div className="g-row" key={e.id}>
-                    <div className="g-label"><button className="link" onClick={() => onOpenEvent(e.id)}>{e.is_major ? '★' : kindInfo(e.kind).icon} {e.title}</button></div>
-                    <div className="g-track" style={trackStyle}>
-                      <button className={`gbar ev k-${e.kind}${b.clipL ? ' clip-l' : ''}${b.clipR ? ' clip-r' : ''}`} style={{ left: b.left * px, width: Math.max(b.width * px - 2, 14) }}
-                        title={desc} aria-label={desc} onClick={() => onOpenEvent(e.id)}>
-                        {b.width * px > 70 && <span className="gbar-text">{e.title}</span>}
-                      </button>
-                    </div>
+              {eventRows.map(({ e, occs }: { e: CalEvent; occs: ReturnType<typeof occurrences> }) => (
+                <div className="g-row" key={e.id}>
+                  <div className="g-label"><button className="link" onClick={() => onOpenEvent(e.id, occs[0].start)}>{e.is_major ? '★' : kindInfo(e.kind).icon}{e.recur !== 'none' ? '↻' : ''} {e.title}</button></div>
+                  <div className="g-track" style={trackStyle}>
+                    {occs.map((o) => {
+                      const b = bar(o.start, o.end, winStart, days)!;
+                      const desc = `${e.title}: ${formatDate(o.start)}${o.end !== o.start ? ` to ${formatDate(o.end)}` : ''}${e.is_major ? ', big event' : ''}${e.recur !== 'none' ? ', repeating' : ''}`;
+                      return (
+                        <button key={o.start} className={`gbar ev k-${e.kind}${b.clipL ? ' clip-l' : ''}${b.clipR ? ' clip-r' : ''}`} style={{ left: b.left * px, width: Math.max(b.width * px - 2, 14) }}
+                          title={desc} aria-label={desc} onClick={() => onOpenEvent(e.id, o.start)}>
+                          {b.width * px > 70 && <span className="gbar-text">{e.title}</span>}
+                        </button>
+                      );
+                    })}
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </>
           )}
 

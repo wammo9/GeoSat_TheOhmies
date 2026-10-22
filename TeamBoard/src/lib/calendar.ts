@@ -1,5 +1,5 @@
-import type { CalEvent, EventKind, Task } from '../types';
-import { addDays, daysBetween, weekday } from './dates';
+import type { CalEvent, EventKind, Recur, Task } from '../types';
+import { addDays, daysBetween, formatDate, weekday } from './dates';
 import { isOverdue } from './rules';
 
 export const KINDS: { id: EventKind; label: string; icon: string }[] = [
@@ -41,22 +41,97 @@ export function monthGrid(iso: string): string[][] {
 }
 
 export const eventEnd = (e: Pick<CalEvent, 'start_date' | 'end_date'>) => e.end_date ?? e.start_date;
-export const eventsOnDay = (events: CalEvent[], day: string) => events.filter((e) => e.start_date <= day && day <= eventEnd(e));
 
-/** Big events that haven't finished yet, soonest first. */
-export function upcomingMajor(events: CalEvent[], today: string, limit = 5): CalEvent[] {
+export const RECURS: { id: Recur; label: string }[] = [
+  { id: 'none', label: 'Does not repeat' },
+  { id: 'daily', label: 'Every day' },
+  { id: 'weekly', label: 'Every week' },
+  { id: 'biweekly', label: 'Every 2 weeks' },
+  { id: 'monthly', label: 'Every month' },
+];
+
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+/** "Repeats every Thursday", "Repeats monthly on the 5th", … */
+export function recurLabel(e: Pick<CalEvent, 'start_date' | 'recur' | 'recur_until'>): string {
+  const day = WEEKDAYS[weekday(e.start_date)];
+  const base =
+    e.recur === 'daily' ? 'Repeats every day'
+    : e.recur === 'weekly' ? `Repeats every ${day}`
+    : e.recur === 'biweekly' ? `Repeats every other ${day}`
+    : e.recur === 'monthly' ? `Repeats monthly on day ${Number(e.start_date.slice(8))}`
+    : '';
+  return base && e.recur_until ? `${base} until ${formatDate(e.recur_until)}` : base;
+}
+
+/** One concrete appearance of an event (a repeating event has many). */
+export interface Occurrence {
+  event: CalEvent;
+  start: string;
+  end: string;
+}
+
+const monthIndex = (iso: string) => Number(iso.slice(0, 4)) * 12 + Number(iso.slice(5, 7)) - 1;
+const daysInMonth = (y: number, m: number) => new Date(Date.UTC(y, m + 1, 0)).getUTCDate(); // m is 0-based
+
+/**
+ * Every occurrence that touches [from, to] (inclusive dates). Non-repeating events yield at most one.
+ * Repeats keep the event's length; a monthly repeat on the 29th–31st lands on the month's last day when needed.
+ * Skipped (cancelled) dates are left out.
+ */
+export function occurrences(e: CalEvent, from: string, to: string): Occurrence[] {
+  const dur = e.end_date ? daysBetween(e.start_date, e.end_date) : 0;
+  const make = (s: string): Occurrence => ({ event: e, start: s, end: addDays(s, dur) });
+  const recur = e.recur ?? 'none';
+  if (recur === 'none') {
+    const o = make(e.start_date);
+    return o.end >= from && o.start <= to ? [o] : [];
+  }
+  const skip = new Set(e.recur_skip ?? []);
+  const lastStart = e.recur_until && e.recur_until < to ? e.recur_until : to;
+  const out: Occurrence[] = [];
+  const earliestStart = addDays(from, -dur); // an occurrence starting this late still reaches `from`
+  const take = (s: string) => { if (!skip.has(s)) out.push(make(s)); };
+  if (recur === 'monthly') {
+    const baseDay = Number(e.start_date.slice(8));
+    const m0 = monthIndex(e.start_date);
+    for (let k = Math.max(0, monthIndex(earliestStart) - m0 - 1); out.length < 2000; k++) {
+      const mi = m0 + k, y = Math.floor(mi / 12), m = mi % 12;
+      const s = `${y}-${String(m + 1).padStart(2, '0')}-${String(Math.min(baseDay, daysInMonth(y, m))).padStart(2, '0')}`;
+      if (s > lastStart) break;
+      if (s >= earliestStart) take(s);
+    }
+    return out;
+  }
+  const step = recur === 'daily' ? 1 : recur === 'weekly' ? 7 : 14;
+  const k0 = Math.max(0, Math.ceil(daysBetween(e.start_date, earliestStart) / step));
+  for (let k = k0; out.length < 2000; k++) {
+    const s = addDays(e.start_date, k * step);
+    if (s > lastStart) break;
+    take(s);
+  }
+  return out;
+}
+
+export const occurrencesOnDay = (events: CalEvent[], day: string): Occurrence[] =>
+  events.flatMap((e) => occurrences(e, day, day));
+
+/** Big events that haven't finished yet (the next occurrence of repeating ones), soonest first. */
+export function upcomingMajor(events: CalEvent[], today: string, limit = 5): Occurrence[] {
   return events
-    .filter((e) => e.is_major && eventEnd(e) >= today)
-    .sort((a, b) => a.start_date.localeCompare(b.start_date) || a.title.localeCompare(b.title))
+    .filter((e) => e.is_major)
+    .map((e) => occurrences(e, today, addDays(today, 800))[0])
+    .filter((o): o is Occurrence => !!o)
+    .sort((a, b) => a.start.localeCompare(b.start) || a.event.title.localeCompare(b.event.title))
     .slice(0, limit);
 }
 
-export function countdown(event: Pick<CalEvent, 'start_date' | 'end_date'>, today: string): string {
-  if (event.start_date > today) {
-    const n = daysBetween(today, event.start_date);
+export function countdown(span: { start: string; end: string }, today: string): string {
+  if (span.start > today) {
+    const n = daysBetween(today, span.start);
     return n === 1 ? 'tomorrow' : `in ${n} days`;
   }
-  if (eventEnd(event) >= today) return event.start_date === today ? 'today' : 'happening now';
+  if (span.end >= today) return span.start === today ? 'today' : 'happening now';
   return 'past';
 }
 

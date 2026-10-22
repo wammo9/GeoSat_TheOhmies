@@ -64,6 +64,8 @@ export type TaskDraft = Pick<
 
 export type EventKind = 'meeting' | 'milestone' | 'deadline' | 'review' | 'other';
 
+export type Recur = 'none' | 'daily' | 'weekly' | 'biweekly' | 'monthly';
+
 export interface CalEvent {
   id: string;
   workspace_id: string;
@@ -73,6 +75,9 @@ export interface CalEvent {
   end_date: string | null; // null = single day
   description: string | null;
   is_major: boolean;
+  recur: Recur;
+  recur_until: string | null; // last date a repeat may start on
+  recur_skip: string[]; // cancelled occurrences (their start dates)
   version: number;
   updated_by: string | null;
   updated_at: string;

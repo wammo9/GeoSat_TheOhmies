@@ -38,6 +38,7 @@ See `config/workstreams.json`.
 - A **Calendar** tab, in addition to (not replacing) the Tuesday/Thursday views.
 - **Big upcoming events** are highlighted at the top: any teammate can add an event and tick "Big event"; each shows a countdown and how many linked tasks are done/overdue/blocked.
 - Anyone can add, edit and delete events (title, type, start/optional end date, notes). Tasks can be linked to an event from the event or from the task.
+- Events can **repeat** (daily, weekly, every 2 weeks, monthly) with an optional end date, and a single repeat can be skipped without deleting the series. Repeats are generated on screen, not stored as separate rows.
 - **Month view** shows events and task due dates (Tue/Thu meetings marked). **Timeline (Gantt) view** shows tasks as bars from an optional start date to the due date, with 4/8/12-week windows and grouping, so multi-week work can be budgeted.
 
 ## Roster and filters

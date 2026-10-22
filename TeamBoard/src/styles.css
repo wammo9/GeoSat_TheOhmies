@@ -61,6 +61,7 @@ legend { font-size: .88rem; font-weight: 600; color: var(--navy); padding: 0 .3r
 .account-menu p { margin: 0 0 .5rem; font-size: .85rem; color: var(--muted); word-break: break-all; } .account-menu strong { color: var(--text); }
 .top .account-menu button { width: 100%; background: #fff; color: var(--text); border-color: var(--line); }
 .status { font-size: .82rem; color: #e3eefb; display: flex; gap: .4rem; }
+.top button.link.retry { color: #fff; border: 0; background: none; min-height: 0; padding: 0; text-decoration: underline; font-size: .8rem; }
 .dot::before { content: "●"; margin-right: .3rem; } .dot.ok::before { color: #6ee7b7; } .dot.warn::before { color: #fcd34d; } .dot.bad::before { color: #fca5a5; }
 .tabs { display: flex; gap: .3rem; padding: 0 1.25rem; overflow-x: auto; position: relative; z-index: 2; }
 .tab { background: transparent !important; border: 0 !important; border-bottom: 3px solid transparent !important; border-radius: 0; color: #cfe0f5 !important; white-space: nowrap; }
@@ -192,6 +193,7 @@ th { color: var(--navy); }
 
 /* ---------------- calendar ---------------- */
 .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .8rem; }
+.recur-box { background: var(--pale); border-radius: 10px; padding: .4rem .8rem; } .recur-box .row { margin: .2rem 0; } .recur-hint { grid-column: 1 / -1; margin: 0; }
 .link-list { list-style: none; margin: .5rem 0 0; padding: 0; max-height: 220px; overflow-y: auto; display: grid; gap: .2rem; }
 .link-list li { display: flex; justify-content: space-between; gap: .5rem; padding: .2rem .3rem; border-radius: 8px; } .link-list li:hover { background: var(--pale); }
 .link-row { display: flex; flex-wrap: wrap; gap: .2rem .6rem; align-items: center; }

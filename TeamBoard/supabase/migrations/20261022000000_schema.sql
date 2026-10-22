@@ -55,12 +55,16 @@ create table events (
   end_date date,                                   -- null = a single-day event
   description text,
   is_major boolean not null default false,         -- "big event": highlighted at the top of the Calendar
+  recur text not null default 'none' check (recur in ('none','daily','weekly','biweekly','monthly')),
+  recur_until date,                                -- last date a repeat may start on (null = no end)
+  recur_skip date[] not null default '{}',         -- individual occurrences that were cancelled
   version int not null default 1,
   created_by uuid references auth.users on delete set null default auth.uid(),
   updated_by uuid references auth.users on delete set null,
   updated_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
-  constraint event_dates check (end_date is null or end_date >= start_date)
+  constraint event_dates check (end_date is null or end_date >= start_date),
+  constraint recur_until_after_start check (recur_until is null or recur_until >= start_date)
 );
 create index events_ws_idx on events (workspace_id, start_date);
 

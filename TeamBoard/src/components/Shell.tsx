@@ -51,7 +51,7 @@ export function Header({ view, setView, board, email, onSignOut, onNew }: {
   const status =
     board.live === 'live' ? <span className="dot ok">Live</span>
     : board.live === 'connecting' ? <span className="dot warn">Connecting…</span>
-    : <span className="dot bad">Offline — not syncing</span>;
+    : <span className="dot bad" title={board.liveDetail}>Offline — not syncing{board.liveDetail && <span className="sr-only"> ({board.liveDetail})</span>} <button className="link retry" onClick={board.reconnect}>Retry</button></span>;
   return (
     <header className="top">
       <div className="top-inner">

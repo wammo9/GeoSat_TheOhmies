@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Task } from '../types';
-import { addMonths, eventsOnDay, kindInfo, monthGrid, monthLabel } from '../lib/calendar';
+import { addMonths, kindInfo, monthGrid, monthLabel, occurrencesOnDay } from '../lib/calendar';
 import { formatDate, weekday } from '../lib/dates';
 import { isOverdue } from '../lib/rules';
 import { useUI } from '../ctx';
@@ -8,7 +8,7 @@ import { useUI } from '../ctx';
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export function MonthView({ tasks, showTasks, onOpenEvent, onAddEvent }: {
-  tasks: Task[]; showTasks: boolean; onOpenEvent: (id: string) => void; onAddEvent: (date: string) => void;
+  tasks: Task[]; showTasks: boolean; onOpenEvent: (id: string, occurrence: string) => void; onAddEvent: (date: string) => void;
 }) {
   const { board, openTask } = useUI();
   const [month, setMonth] = useState(board.today.slice(0, 7) + '-01');
@@ -28,7 +28,7 @@ export function MonthView({ tasks, showTasks, onOpenEvent, onAddEvent }: {
       <div className="month" role="grid" aria-label={monthLabel(month)}>
         {DOW.map((d) => <div key={d} className="dow" role="columnheader">{d}</div>)}
         {weeks.flat().map((day) => {
-          const evs = eventsOnDay(board.events, day);
+          const evs = occurrencesOnDay(board.events, day);
           const due = showTasks ? tasks.filter((t) => t.due_date === day) : [];
           const items = evs.length + due.length;
           const open = expanded === day;
@@ -45,13 +45,16 @@ export function MonthView({ tasks, showTasks, onOpenEvent, onAddEvent }: {
                 {meeting && <span className="meet-label">{meeting}</span>}
                 <button className="add-here" aria-label={`Add event on ${formatDate(day)}`} onClick={() => onAddEvent(day)}>+</button>
               </div>
-              {shownEvs.map((e) => (
-                <button key={e.id} className={`pill ev k-${e.kind}${e.start_date < day ? ' cont' : ''}`} onClick={() => onOpenEvent(e.id)}
-                  title={`${kindInfo(e.kind).label}: ${e.title}`}>
-                  <span aria-hidden="true">{e.is_major ? '★' : kindInfo(e.kind).icon}</span> {e.title}
-                  <span className="sr-only"> ({kindInfo(e.kind).label}{e.is_major ? ', big event' : ''})</span>
-                </button>
-              ))}
+              {shownEvs.map((o) => {
+                const e = o.event;
+                return (
+                  <button key={`${e.id}-${o.start}`} className={`pill ev k-${e.kind}${o.start < day ? ' cont' : ''}`} onClick={() => onOpenEvent(e.id, o.start)}
+                    title={`${kindInfo(e.kind).label}: ${e.title}${e.recur !== 'none' ? ' (repeats)' : ''}`}>
+                    <span aria-hidden="true">{e.is_major ? '★' : kindInfo(e.kind).icon}{e.recur !== 'none' ? '↻' : ''}</span> {e.title}
+                    <span className="sr-only"> ({kindInfo(e.kind).label}{e.is_major ? ', big event' : ''}{e.recur !== 'none' ? ', repeating' : ''})</span>
+                  </button>
+                );
+              })}
               {shownTasks.map((t) => {
                 const owner = board.person(t.owner_id);
                 return (

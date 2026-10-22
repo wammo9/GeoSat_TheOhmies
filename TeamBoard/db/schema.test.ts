@@ -152,3 +152,16 @@ describe('calendar events', () => {
     expect(rows[0].detail.title).toBe('Design review');
   });
 });
+
+describe('recurring events', () => {
+  it('stores a repeat rule with an end date and skipped dates', async () => {
+    const r = await as(A, `insert into events(workspace_id,title,start_date,recur,recur_until,recur_skip) values ('${ws}','Weekly sync','2026-11-03','weekly','2026-12-15','{2026-11-10}') returning recur, recur_until::text, recur_skip::text[]`);
+    expect(r[0]).toEqual({ recur: 'weekly', recur_until: '2026-12-15', recur_skip: ['2026-11-10'] });
+  });
+  it('defaults to not repeating and rejects bad rules', async () => {
+    const r = await as(A, `insert into events(workspace_id,title,start_date) values ('${ws}','One-off','2026-11-03') returning recur`);
+    expect(r[0].recur).toBe('none');
+    expect(await fails(A, `insert into events(workspace_id,title,start_date,recur) values ('${ws}','x','2026-11-03','yearly')`)).toBeTruthy();
+    expect(await fails(A, `insert into events(workspace_id,title,start_date,recur,recur_until) values ('${ws}','x','2026-11-03','weekly','2026-11-01')`)).toBeTruthy();
+  });
+});

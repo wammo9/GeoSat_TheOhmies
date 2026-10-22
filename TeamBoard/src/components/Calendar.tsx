@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Task } from '../types';
-import { countdown, eventEnd, kindInfo, linkedStats, upcomingMajor } from '../lib/calendar';
+import { countdown, kindInfo, linkedStats, recurLabel, upcomingMajor } from '../lib/calendar';
 import { formatDate } from '../lib/dates';
 import { MonthView } from './MonthView';
 import { Timeline } from './Timeline';
@@ -12,7 +12,7 @@ type Sub = 'month' | 'timeline';
 export function CalendarView({ tasks }: { tasks: Task[] }) {
   const { board } = useUI();
   const [sub, setSub] = useState<Sub>('month');
-  const [dialog, setDialog] = useState<{ id?: string; date?: string } | null>(null);
+  const [dialog, setDialog] = useState<{ id?: string; date?: string; occurrence?: string } | null>(null);
   const [showTasks, setShowTasks] = useState(true);
   const [showCompleted, setShowCompleted] = useState(false);
   const big = upcomingMajor(board.events, board.today, 5);
@@ -29,14 +29,15 @@ export function CalendarView({ tasks }: { tasks: Task[] }) {
           <p className="muted">Nothing big on the horizon. Add an event and tick “Big event” to pin it here.</p>
         ) : (
           <ul className="big-list">
-            {big.map((e) => {
+            {big.map((o) => {
+              const e = o.event;
               const s = linkedStats(e.id, board.tasks, board.today);
               return (
                 <li key={e.id}>
-                  <button className="big-card" onClick={() => setDialog({ id: e.id })}>
-                    <span className="big-when">{countdown(e, board.today)}</span>
+                  <button className="big-card" onClick={() => setDialog({ id: e.id, occurrence: o.start })}>
+                    <span className="big-when">{countdown(o, board.today)}</span>
                     <strong><span aria-hidden="true">★ </span>{e.title}</strong>
-                    <span className="muted">{kindInfo(e.kind).label} · {formatDate(e.start_date)}{e.end_date ? ` – ${formatDate(eventEnd(e))}` : ''}</span>
+                    <span className="muted">{kindInfo(e.kind).label} · {formatDate(o.start)}{o.end !== o.start ? ` – ${formatDate(o.end)}` : ''}{e.recur !== 'none' ? ` · ↻ ${recurLabel(e)}` : ''}</span>
                     <span className="big-tasks">
                       {s.total === 0 ? 'No tasks linked yet' : `${s.done} of ${s.total} linked tasks done`}
                       {s.overdue > 0 && <span className="badge overdue"><span aria-hidden="true">⚠ </span>{s.overdue} overdue</span>}
@@ -62,10 +63,10 @@ export function CalendarView({ tasks }: { tasks: Task[] }) {
           </div>
         </div>
         {sub === 'month'
-          ? <MonthView tasks={monthTasks} showTasks={showTasks} onOpenEvent={(id) => setDialog({ id })} onAddEvent={(date) => setDialog({ date })} />
-          : <Timeline tasks={tasks} showCompleted={showCompleted} onOpenEvent={(id) => setDialog({ id })} />}
+          ? <MonthView tasks={monthTasks} showTasks={showTasks} onOpenEvent={(id, occurrence) => setDialog({ id, occurrence })} onAddEvent={(date) => setDialog({ date })} />
+          : <Timeline tasks={tasks} showCompleted={showCompleted} onOpenEvent={(id, occurrence) => setDialog({ id, occurrence })} />}
       </section>
-      {dialog && <EventDialog key={dialog.id ?? dialog.date ?? 'new'} eventId={dialog.id} date={dialog.date} onClose={() => setDialog(null)} />}
+      {dialog && <EventDialog key={dialog.id ?? dialog.date ?? 'new'} eventId={dialog.id} date={dialog.date} occurrence={dialog.occurrence} onClose={() => setDialog(null)} />}
     </div>
   );
 }

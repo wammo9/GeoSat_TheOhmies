@@ -31,6 +31,8 @@ export function useBoard(workspaceId: string, userId: string) {
   const [events, setEvents] = useState<CalEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [live, setLive] = useState<Live>('connecting');
+  const [liveDetail, setLiveDetail] = useState('');
+  const [reconnects, setReconnects] = useState(0);
   const [saving, setSaving] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -98,11 +100,16 @@ export function useBoard(workspaceId: string, userId: string) {
         }, 120);
       });
     }
-    ch.subscribe((status) => {
+    ch.subscribe((status, err) => {
       if (status === 'SUBSCRIBED') {
         setLive('live');
+        setLiveDetail('');
         refresh(); // catch anything missed while disconnected
-      } else setLive('offline');
+      } else {
+        setLive('offline');
+        setLiveDetail(`${status}${err?.message ? `: ${err.message}` : ''}`);
+        console.warn('[GeoSat board] live updates disconnected:', status, err);
+      }
     });
 
     const onVisible = () => document.visibilityState === 'visible' && refresh();
@@ -117,7 +124,7 @@ export function useBoard(workspaceId: string, userId: string) {
       Object.values(timers.current).forEach((t) => window.clearTimeout(t));
       sb.removeChannel(ch);
     };
-  }, [workspaceId, refresh]);
+  }, [workspaceId, refresh, reconnects]);
 
   // ---------------------------------------------------------------- helpers
   const track = useCallback(async <T,>(fn: () => Promise<T>): Promise<T | undefined> => {
@@ -311,7 +318,7 @@ export function useBoard(workspaceId: string, userId: string) {
   );
 
   // ---------------------------------------------------------------- calendar events
-  type EventFields = Pick<CalEvent, 'title' | 'kind' | 'start_date' | 'end_date' | 'description' | 'is_major'>;
+  type EventFields = Pick<CalEvent, 'title' | 'kind' | 'start_date' | 'end_date' | 'description' | 'is_major' | 'recur' | 'recur_until' | 'recur_skip'>;
 
   const createEvent = useCallback(
     (d: EventFields): Promise<CalEvent | undefined> =>
@@ -485,10 +492,12 @@ export function useBoard(workspaceId: string, userId: string) {
     [track, workspaceId, refresh],
   );
 
+  const reconnect = useCallback(() => { setLive('connecting'); setReconnects((n) => n + 1); }, []);
+
   const thursday = nextWeekday(today, THURSDAY);
 
   return {
-    workspaceId, userId, loading, live, saving, error, setError, notice, setNotice, today, thursday,
+    workspaceId, userId, loading, live, liveDetail, reconnect, saving, error, setError, notice, setNotice, today, thursday,
     people, tasks, comments, activity, summary, members, invites, events, me, person, actorName,
     createEvent, saveEvent, deleteEvent, setTaskEvent,
     createTask, saveTask, moveTask, addEvidence, addNoDeliverable, removeEvidence, carryForward, deleteTask, addComment,
