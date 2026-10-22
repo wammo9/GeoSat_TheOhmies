@@ -13,7 +13,7 @@ function CardBody({ task, floating }: { task: Task; floating?: boolean }) {
   const owner = board.person(task.owner_id);
   return (
     <>
-      <span className="tape" style={{ background: owner?.color }} aria-hidden="true" />
+      <span className="tape" aria-hidden="true" />
       <button className="card-title" onClick={() => openTask(task.id)}>{task.title}</button>
       <div className="card-row"><OwnerChip person={owner} /></div>
       <div className="card-row"><DueDate task={task} today={board.today} /><span className="tag">{task.workstream}</span></div>
@@ -45,7 +45,7 @@ function Card({ task }: { task: Task }) {
       role="group"
       aria-label={task.title}
       className={`card pri-${task.priority.toLowerCase()}${overdue ? ' is-overdue' : ''}${task.blocked ? ' is-blocked' : ''}${isDragging ? ' dragging' : ''}`}
-      style={{ ['--tilt' as any]: `${tilt(task.id)}deg` }}
+      style={{ ['--tilt' as any]: `${tilt(task.id)}deg`, ['--owner' as any]: board.person(task.owner_id)?.color ?? '#9fb3c8' }}
     >
       <CardBody task={task} />
     </article>
@@ -66,7 +66,7 @@ function Column({ id, title, tasks, total }: { id: ColId; title: string; tasks: 
 }
 
 export function KanbanBoard({ tasks, allTasks }: { tasks: Task[]; allTasks: Task[] }) {
-  const { move } = useUI();
+  const { board, move } = useUI();
   const [dragging, setDragging] = useState<Task | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -86,7 +86,7 @@ export function KanbanBoard({ tasks, allTasks }: { tasks: Task[]; allTasks: Task
             tasks={tasks.filter((t) => t.col === c.id).sort(byDueThenPriority)} />
         ))}
       </div>
-      <DragOverlay>{dragging ? <article className="card floating"><CardBody task={dragging} floating /></article> : null}</DragOverlay>
+      <DragOverlay>{dragging ? <article className="card floating" style={{ ['--owner' as any]: board.person(dragging.owner_id)?.color ?? '#9fb3c8' }}><CardBody task={dragging} floating /></article> : null}</DragOverlay>
     </DndContext>
   );
 }
