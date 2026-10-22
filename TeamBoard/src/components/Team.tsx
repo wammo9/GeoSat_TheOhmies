@@ -46,6 +46,7 @@ export function Team() {
       case 'person': return `${a.action === 'insert' ? 'added teammate' : a.action === 'delete' ? 'removed teammate' : 'updated profile of'} ${d.initial ?? ''}`;
       case 'invite': return `${a.action === 'insert' ? 'invited' : 'cancelled invite for'} ${d.email}`;
       case 'member': return a.action === 'joined' ? `${d.email} joined` : `removed ${d.email} from the workspace`;
+      case 'event': return `${a.action === 'insert' ? 'added event' : a.action === 'delete' ? 'deleted event' : 'updated event'} “${d.title ?? ''}”`;
       case 'summary': return 'updated the weekly goal / milestone / blockers';
       default: return a.action;
     }

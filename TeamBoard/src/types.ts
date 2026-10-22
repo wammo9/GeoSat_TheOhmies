@@ -28,7 +28,9 @@ export interface Task {
   owner_id: string;
   supporters: string[];
   workstream: string;
+  start_date: string | null; // optional; with due_date it makes a bar on the timeline
   due_date: string; // YYYY-MM-DD, America/Denver calendar date
+  event_id: string | null; // optional calendar event this task supports
   deliverable: string;
   priority: Priority;
   col: ColId;
@@ -49,7 +51,9 @@ export type TaskDraft = Pick<
   | 'owner_id'
   | 'supporters'
   | 'workstream'
+  | 'start_date'
   | 'due_date'
+  | 'event_id'
   | 'deliverable'
   | 'priority'
   | 'col'
@@ -57,6 +61,22 @@ export type TaskDraft = Pick<
   | 'blocker'
   | 'dependencies'
 >;
+
+export type EventKind = 'meeting' | 'milestone' | 'deadline' | 'review' | 'other';
+
+export interface CalEvent {
+  id: string;
+  workspace_id: string;
+  title: string;
+  kind: EventKind;
+  start_date: string;
+  end_date: string | null; // null = single day
+  description: string | null;
+  is_major: boolean;
+  version: number;
+  updated_by: string | null;
+  updated_at: string;
+}
 
 export interface Comment {
   id: string;

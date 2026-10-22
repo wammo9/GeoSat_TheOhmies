@@ -6,7 +6,7 @@ const LABEL: Record<string, string> = {
   title: 'title', owner_id: 'owner', supporters: 'supporting teammates', workstream: 'workstream',
   due_date: 'due date', deliverable: 'deliverable', priority: 'priority', col: 'column',
   blocked: 'blocked flag', blocker: 'blocker description', dependencies: 'integration dependencies',
-  evidence: 'evidence', is_demo: 'demo flag',
+  evidence: 'evidence', is_demo: 'demo flag', start_date: 'start date', event_id: 'linked event',
 };
 
 const short = (s: unknown) => {
@@ -26,6 +26,8 @@ export function describeChange(detail: Record<string, any> | null, people: Perso
       case 'owner_id': out.push(`changed owner from ${who(from)} to ${who(to)}`); break;
       case 'supporters': out.push(`set supporters to ${(to as string[]).map(who).join(', ') || 'none'}`); break;
       case 'due_date': out.push(`changed due date from ${formatDate(from)} to ${formatDate(to)}`); break;
+      case 'start_date': out.push(`changed start date from ${from ? formatDate(from) : 'none'} to ${to ? formatDate(to) : 'none'}`); break;
+      case 'event_id': out.push(to ? 'linked to a calendar event' : 'unlinked from a calendar event'); break;
       case 'blocked': out.push(to ? 'flagged as blocked' : 'cleared the blocked flag'); break;
       case 'evidence': {
         const a = (from ?? []).length, b = (to ?? []).length;

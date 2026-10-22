@@ -17,6 +17,7 @@ import { NewTask } from './components/NewTask';
 import { EvidencePrompt } from './components/Evidence';
 import { TuesdayPlanning, ThursdayReview } from './components/Planning';
 import { AllTasks } from './components/AllTasks';
+import { CalendarView } from './components/Calendar';
 import { Team } from './components/Team';
 
 export default function App() {
@@ -111,7 +112,7 @@ function Workspace({ ws, session }: { ws: string; session: Session }) {
                 <button className="small" onClick={() => setView('team')}>Manage demo data</button>
               </div>
             )}
-            {view !== 'team' && <Summaries />}
+            {view !== 'team' && view !== 'calendar' && <Summaries />}
 
             {view === 'board' && (
               <>
@@ -130,6 +131,12 @@ function Workspace({ ws, session }: { ws: string; session: Session }) {
             )}
             {view === 'tuesday' && <TuesdayPlanning />}
             {view === 'thursday' && <ThursdayReview />}
+            {view === 'calendar' && (
+              <>
+                <FilterBar f={filters} set={setFilters} shown={filtered.length} total={board.tasks.length} />
+                <CalendarView tasks={filtered} />
+              </>
+            )}
             {view === 'all' && (
               <>
                 <FilterBar f={filters} set={setFilters} shown={filtered.length} total={board.tasks.length} />

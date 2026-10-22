@@ -46,6 +46,24 @@ create table invites (
   primary key (workspace_id, email)
 );
 
+create table events (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references workspaces on delete cascade,
+  title text not null check (length(trim(title)) > 0),
+  kind text not null default 'other' check (kind in ('meeting','milestone','deadline','review','other')),
+  start_date date not null,                        -- calendar dates in America/Denver
+  end_date date,                                   -- null = a single-day event
+  description text,
+  is_major boolean not null default false,         -- "big event": highlighted at the top of the Calendar
+  version int not null default 1,
+  created_by uuid references auth.users on delete set null default auth.uid(),
+  updated_by uuid references auth.users on delete set null,
+  updated_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  constraint event_dates check (end_date is null or end_date >= start_date)
+);
+create index events_ws_idx on events (workspace_id, start_date);
+
 create table tasks (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references workspaces on delete cascade,
@@ -53,7 +71,9 @@ create table tasks (
   owner_id uuid not null references people on delete restrict,
   supporters uuid[] not null default '{}',
   workstream text not null,
+  start_date date,                                 -- optional: shows the task as a bar on the Gantt timeline
   due_date date not null,                          -- a calendar date in America/Denver
+  event_id uuid references events on delete set null,  -- optional calendar event this task supports
   deliverable text not null check (length(trim(deliverable)) > 0),
   priority text not null default 'Medium' check (priority in ('Low','Medium','High','Critical')),
   col text not null default 'backlog'
@@ -69,7 +89,8 @@ create table tasks (
   updated_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
   constraint evidence_required check (col <> 'completed' or jsonb_array_length(evidence) > 0),
-  constraint blocker_described check (not blocked or length(trim(coalesce(blocker, ''))) > 0)
+  constraint blocker_described check (not blocked or length(trim(coalesce(blocker, ''))) > 0),
+  constraint start_before_due check (start_date is null or start_date <= due_date)
 );
 create index tasks_ws_idx on tasks (workspace_id, col, due_date);
 
@@ -125,7 +146,10 @@ begin
     if new.workspace_id <> old.workspace_id then
       raise exception 'workspace_id is immutable';
     end if;
-    if new.version <> old.version + 1 then
+    if new.version = old.version and old.event_id is not null and new.event_id is null
+       and (to_jsonb(new) - 'event_id') = (to_jsonb(old) - 'event_id') then
+      new.version := old.version + 1;   -- automatic unlink when a calendar event is deleted
+    elsif new.version <> old.version + 1 then
       raise exception 'stale_version' using errcode = '40001';
     end if;
   else
@@ -133,6 +157,10 @@ begin
   end if;
   if not exists (select 1 from people where id = new.owner_id and workspace_id = new.workspace_id) then
     raise exception 'owner must belong to this workspace';
+  end if;
+  if new.event_id is not null
+     and not exists (select 1 from events where id = new.event_id and workspace_id = new.workspace_id) then
+    raise exception 'event must belong to this workspace';
   end if;
   new.updated_by := auth.uid();
   new.updated_at := now();
@@ -195,7 +223,7 @@ begin
   insert into activity(workspace_id, entity, actor_id, action, detail)
   values (ws,
           case tg_table_name when 'people' then 'person' when 'invites' then 'invite'
-                             when 'members' then 'member' else 'summary' end,
+                             when 'members' then 'member' when 'events' then 'event' else 'summary' end,
           auth.uid(), lower(tg_op), r);
   return null;
 end $$;
@@ -216,6 +244,29 @@ begin
 end $$;
 create trigger summary_guard_t before update on workspace_summary
   for each row execute function summary_guard();
+
+-- Calendar events: versioned writes, stamped, and logged.
+create or replace function events_guard() returns trigger
+language plpgsql set search_path = public as $$
+begin
+  if tg_op = 'UPDATE' then
+    if new.workspace_id <> old.workspace_id then
+      raise exception 'workspace_id is immutable';
+    end if;
+    if new.version <> old.version + 1 then
+      raise exception 'stale_version' using errcode = '40001';
+    end if;
+  else
+    new.version := 1;
+  end if;
+  new.updated_by := auth.uid();
+  new.updated_at := now();
+  return new;
+end $$;
+create trigger events_guard_t before insert or update on events
+  for each row execute function events_guard();
+create trigger events_log_t after insert or update or delete on events
+  for each row execute function generic_log();
 
 -- ---------------------------------------------------------------- RPCs
 
@@ -302,6 +353,7 @@ alter table tasks enable row level security;
 alter table comments enable row level security;
 alter table activity enable row level security;
 alter table workspace_summary enable row level security;
+alter table events enable row level security;
 
 create policy ws_read      on workspaces for select using (is_member(id));
 create policy people_read  on people for select using (is_member(workspace_id));
@@ -320,8 +372,9 @@ create policy comments_add on comments for insert with check (is_member(workspac
 create policy comments_del on comments for delete using (author_id = auth.uid());
 create policy activity_read on activity for select using (is_member(workspace_id));
 create policy summary_read on workspace_summary for select using (is_member(workspace_id));
+create policy events_all   on events for all using (is_member(workspace_id)) with check (is_member(workspace_id));
 create policy summary_edit on workspace_summary for update using (is_member(workspace_id)) with check (is_member(workspace_id));
 
 -- ---------------------------------------------------------------- realtime
 
-alter publication supabase_realtime add table tasks, comments, activity, workspace_summary, people, members, invites;
+alter publication supabase_realtime add table tasks, comments, activity, workspace_summary, people, members, invites, events;

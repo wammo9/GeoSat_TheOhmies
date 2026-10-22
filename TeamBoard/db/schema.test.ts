@@ -114,3 +114,41 @@ describe('summary', () => {
     expect((await as(B, `update workspace_summary set weekly_goal='other', version=2 where version=1 returning weekly_goal`)).length).toBe(0);
   });
 });
+
+describe('calendar events', () => {
+  let ev = '';
+  it('members create events; outsiders cannot see or write them', async () => {
+    ev = (await as(B, `insert into events(workspace_id,title,kind,start_date,end_date,is_major) values ('${ws}','Design review','review','2026-11-12','2026-11-13',true) returning id`))[0].id;
+    expect((await as(A, 'select count(*)::int n from events'))[0].n).toBe(1);
+    expect((await as(C, 'select count(*)::int n from events'))[0].n).toBe(0);
+    expect(await fails(C, `insert into events(workspace_id,title,start_date) values ('${ws}','x','2026-11-01')`)).toBeTruthy();
+  });
+  it('validates event dates and titles', async () => {
+    expect(await fails(A, `insert into events(workspace_id,title,start_date,end_date) values ('${ws}','x','2026-11-05','2026-11-01')`)).toBeTruthy();
+    expect(await fails(A, `insert into events(workspace_id,title,start_date) values ('${ws}',' ','2026-11-05')`)).toBeTruthy();
+  });
+  it('rejects stale event edits', async () => {
+    expect((await as(A, `update events set title='Design review v2', version=2 where id='${ev}' and version=1 returning id`)).length).toBe(1);
+    expect((await as(B, `update events set title='other', version=2 where id='${ev}' and version=1 returning id`)).length).toBe(0);
+    expect((await fails(B, `update events set title='other' where id='${ev}'`))?.code).toBe('40001');
+  });
+  it('tasks can have a start date and link to an event; start must not be after due', async () => {
+    expect(await fails(A, `update tasks set start_date='2026-12-01', version=version+1 where id='${taskId}'`)).toBeTruthy();
+    const cur = (await as(A, `select version v from tasks where id='${taskId}'`))[0].v;
+    const r = await as(A, `update tasks set start_date='2026-10-15', event_id='${ev}', version=${cur + 1} where id='${taskId}' and version=${cur} returning event_id`);
+    expect(r[0].event_id).toBe(ev);
+  });
+  it('deleting an event unlinks its tasks (and bumps their version) instead of failing', async () => {
+    const before = (await as(A, `select version v from tasks where id='${taskId}'`))[0].v;
+    await as(A, `delete from events where id='${ev}'`);
+    const after = (await as(A, `select version v, event_id from tasks where id='${taskId}'`))[0];
+    expect(after.event_id).toBeNull();
+    expect(after.v).toBe(before + 1);
+  });
+  it('logs event changes with who did them', async () => {
+    const rows = await as<any>(A, `select action, actor_id, detail from activity where entity='event' order by id`);
+    expect(rows.map((r) => r.action)).toEqual(['insert', 'update', 'delete']);
+    expect(rows[0].actor_id).toBe(B);
+    expect(rows[0].detail.title).toBe('Design review');
+  });
+});

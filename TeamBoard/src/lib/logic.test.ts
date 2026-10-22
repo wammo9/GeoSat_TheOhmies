@@ -11,7 +11,7 @@ const person = (id: string, initial: string): Person => ({
   id, workspace_id: 'w', initial, name: initial, color: '#7C4DBE', role: null, focus: null, user_id: null, active: true, version: 1,
 });
 const task = (o: Partial<Task>): Task => ({
-  id: 't', workspace_id: 'w', title: 'T', owner_id: 'J', supporters: [], workstream: 'Hardware',
+  id: 't', workspace_id: 'w', title: 'T', owner_id: 'J', supporters: [], workstream: 'Hardware', start_date: null, event_id: null,
   due_date: '2026-10-22', deliverable: 'd', priority: 'Medium', col: 'backlog', blocked: false, blocker: null,
   dependencies: null, evidence: [], is_demo: false, version: 1, updated_by: null, updated_at: '', created_at: '', ...o,
 });

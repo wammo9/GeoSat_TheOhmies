@@ -10,7 +10,7 @@ import WORKSTREAMS from '../../config/workstreams.json';
 export function NewTask({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
   const { board } = useUI();
   const [d, setD] = useState<TaskDraft>({
-    title: '', owner_id: board.me?.id ?? '', supporters: [], workstream: WORKSTREAMS[0], due_date: board.thursday,
+    title: '', owner_id: board.me?.id ?? '', supporters: [], workstream: WORKSTREAMS[0], start_date: null, due_date: board.thursday, event_id: null,
     deliverable: '', priority: 'Medium', col: 'backlog', blocked: false, blocker: '', dependencies: '',
   });
   const [errors, setErrors] = useState<DraftErrors>({});
@@ -30,7 +30,7 @@ export function NewTask({ onClose, onCreated }: { onClose: () => void; onCreated
   return (
     <Modal title="New task" onClose={onClose}>
       <form onSubmit={submit} noValidate>
-        <TaskFields d={d} set={(p) => setD({ ...d, ...p })} people={board.people} errors={errors} showColumn />
+        <TaskFields d={d} set={(p) => setD({ ...d, ...p })} people={board.people} events={board.events} errors={errors} showColumn />
         {fail && <p className="form-err" role="alert">{fail}</p>}
         <div className="row end">
           <button type="button" onClick={onClose}>Cancel</button>

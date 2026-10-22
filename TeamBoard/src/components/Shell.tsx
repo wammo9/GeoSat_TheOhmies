@@ -40,9 +40,9 @@ function AccountMenu({ board, email, onSignOut }: { board: Board; email: string;
   );
 }
 
-export type View = 'board' | 'tuesday' | 'thursday' | 'all' | 'team';
+export type View = 'board' | 'tuesday' | 'thursday' | 'calendar' | 'all' | 'team';
 const TABS: [View, string][] = [
-  ['board', 'Board'], ['tuesday', 'Tuesday planning'], ['thursday', 'Thursday review'], ['all', 'All tasks'], ['team', 'Team'],
+  ['board', 'Board'], ['tuesday', 'Tuesday planning'], ['thursday', 'Thursday review'], ['calendar', 'Calendar'], ['all', 'All tasks'], ['team', 'Team'],
 ];
 
 export function Header({ view, setView, board, email, onSignOut, onNew }: {

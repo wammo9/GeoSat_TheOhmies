@@ -1,10 +1,11 @@
-import type { Person, TaskDraft } from '../types';
+import type { CalEvent, Person, TaskDraft } from '../types';
+import { formatDate } from '../lib/dates';
 import { PRIORITIES, COLUMNS, type DraftErrors } from '../lib/rules';
 import WORKSTREAMS from '../../config/workstreams.json';
 
 /** Shared field set for creating and editing a task. */
-export function TaskFields({ d, set, people, errors, lockBlocked, showColumn }: {
-  d: TaskDraft; set: (p: Partial<TaskDraft>) => void; people: Person[]; errors: DraftErrors; lockBlocked?: boolean; showColumn?: boolean;
+export function TaskFields({ d, set, people, events, errors, lockBlocked, showColumn }: {
+  d: TaskDraft; set: (p: Partial<TaskDraft>) => void; people: Person[]; events: CalEvent[]; errors: DraftErrors; lockBlocked?: boolean; showColumn?: boolean;
 }) {
   const active = people.filter((p) => p.active || p.id === d.owner_id || d.supporters.includes(p.id));
   const err = (k: keyof TaskDraft) => errors[k] && <span className="field-err" role="alert">{errors[k]}</span>;
@@ -25,6 +26,18 @@ export function TaskFields({ d, set, people, errors, lockBlocked, showColumn }: 
         <label>Due date <span className="req">required</span>
           <input type="date" value={d.due_date} onChange={(e) => set({ due_date: e.target.value })} aria-invalid={!!errors.due_date} />
           {err('due_date')}
+        </label>
+      </div>
+      <div className="grid2">
+        <label>Start date <span className="muted">(optional — shows a bar on the timeline)</span>
+          <input type="date" value={d.start_date ?? ''} max={d.due_date || undefined} onChange={(e) => set({ start_date: e.target.value || null })} aria-invalid={!!errors.start_date} />
+          {err('start_date')}
+        </label>
+        <label>Calendar event <span className="muted">(optional)</span>
+          <select value={d.event_id ?? ''} onChange={(e) => set({ event_id: e.target.value || null })}>
+            <option value="">Not linked</option>
+            {events.map((ev) => <option key={ev.id} value={ev.id}>{ev.title} — {formatDate(ev.start_date)}</option>)}
+          </select>
         </label>
       </div>
       <label>Concrete deliverable <span className="req">required</span>

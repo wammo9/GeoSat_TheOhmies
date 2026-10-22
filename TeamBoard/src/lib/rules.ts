@@ -46,6 +46,7 @@ export function validateDraft(d: Partial<TaskDraft>): DraftErrors {
   if (!d.owner_id) e.owner_id = 'Choose one accountable owner.';
   if (!d.due_date) e.due_date = 'A due date is required.';
   if (!d.deliverable?.trim()) e.deliverable = 'Describe the concrete deliverable.';
+  if (d.start_date && d.due_date && d.start_date > d.due_date) e.start_date = 'The start date cannot be after the due date.';
   if (d.blocked && !d.blocker?.trim()) e.blocker = 'Describe what is blocking this task.';
   if (d.owner_id && d.supporters?.includes(d.owner_id))
     e.supporters = 'The owner cannot also be a supporter.';

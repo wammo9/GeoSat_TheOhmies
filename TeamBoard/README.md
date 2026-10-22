@@ -46,12 +46,17 @@ Open the site in two browsers signed in as two different teammates, then:
 5. Edit the weekly goal in both → second saver is warned.
 6. Sign out and back in → data still there. Sign in as a non-invited account → "not on this team".
 
+## Upgrading an existing project to the Calendar release
+
+If you ran the earlier `db/schema.sql` on a Supabase project, paste **`db/add-calendar.sql`** into the SQL Editor and run it **once** (it only adds new things; existing data is untouched). New projects just run `db/schema.sql`, which already includes it. Then upload the new build.
+
 ## How the requirements are met
 
 - **Columns / moves:** Backlog, Tuesday Commitments, In Progress, Thursday Review, Completed. Drag and drop (mouse, touch) plus a "Move to" menu on every card and in the detail panel.
 - **Blocked** is a flag (⛔ Blocked, needs a description), allowed in any column except Completed. Completing a task clears it. **Overdue** shows a dashed border, a ⚠ icon, the word "Overdue", and underlined date — not color alone.
 - **Required fields:** title, one owner, due date, deliverable (form and database). **Completing a task** asks whether there was a deliverable: *No* records "no deliverable"; *Yes* requires a one-sentence what-and-where note (stored with the task and enforced by a database constraint). Reopen from the panel.
 - **Tuesday planning:** review all unfinished work (overdue first) and commit tasks for Thursday. **Thursday review:** inspect deliverables, add evidence, record integration dependencies, complete, or *explicitly* carry forward with a revised due date (moves to Backlog, leaves a comment). Nothing changes automatically when a meeting passes.
+- **Calendar tab:** big upcoming events pinned at the top (with countdown and linked-task progress); anyone can add/edit events; tasks link to events; a **Month** view of events and due dates; and a **Timeline (Gantt)** of tasks (optional start date → due date) in 4/8/12-week windows, grouped by owner or workstream. Filters apply to tasks. The Tuesday/Thursday views are unchanged.
 - **Roster** is computed from live tasks. **Filters:** owner, workstream, due, priority, blocked, search. **All tasks** keeps old unfinished work visible.
 - **Collaboration:** Supabase Realtime re-reads changed tables; visible Live/Offline and Saving indicators; error toasts. Every task change is logged with who and when (detail panel → Activity).
 - **Concurrent edits:** every task, summary and profile write carries a `version`; the database rejects stale writes. The detail panel merges non-overlapping edits and shows a per-field choice dialog for true conflicts. Drag-and-drop moves that lose a race are not applied and you are told why. Evidence is appended against the latest copy, so it's never lost.

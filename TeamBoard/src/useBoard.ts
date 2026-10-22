@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { errMsg, supabase as sb } from './supabase';
-import type { Activity, ColId, Comment, Evidence, Invite, Member, Person, Summary, Task, TaskDraft } from './types';
+import type { Activity, CalEvent, ColId, Comment, Evidence, Invite, Member, Person, Summary, Task, TaskDraft } from './types';
 import { addDays, nextWeekday, THURSDAY, todayDenver } from './lib/dates';
 import DEMO_SEED from '../seed/demo-tasks.json';
 import { colTitle, completionError, evidenceFrom, hasEvidence, noDeliverableEvidence, validateDraft } from './lib/rules';
@@ -13,7 +13,9 @@ export type SaveResult =
   | { ok: false; reason: 'deleted' }
   | { ok: false; reason: 'invalid'; message: string };
 
-const TABLES = ['tasks', 'comments', 'activity', 'people', 'workspace_summary', 'members', 'invites'] as const;
+const TEAM_ORDER = ['J', 'A', 'W', 'M', 'T', 'B'];
+const teamRank = (i: string) => { const n = TEAM_ORDER.indexOf(i.toUpperCase()); return n < 0 ? 99 : n; }; // keep the team's usual order
+const TABLES = ['tasks', 'comments', 'activity', 'people', 'workspace_summary', 'members', 'invites', 'events'] as const;
 type Table = (typeof TABLES)[number];
 
 const DEMO = DEMO_SEED.tasks;
@@ -26,6 +28,7 @@ export function useBoard(workspaceId: string, userId: string) {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [invites, setInvites] = useState<Invite[]>([]);
+  const [events, setEvents] = useState<CalEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [live, setLive] = useState<Live>('connecting');
   const [saving, setSaving] = useState(0);
@@ -49,6 +52,7 @@ export function useBoard(workspaceId: string, userId: string) {
         case 'workspace_summary': res = await q('workspace_summary').eq('workspace_id', workspaceId); break;
         case 'members': res = await q('members'); break;
         case 'invites': res = await q('invites'); break;
+        case 'events': res = await q('events').order('start_date'); break;
       }
       if (res.error) throw res.error;
       const rows = res.data as any[];
@@ -56,10 +60,11 @@ export function useBoard(workspaceId: string, userId: string) {
         case 'tasks': setTasks(rows); break;
         case 'comments': setComments(rows); break;
         case 'activity': setActivity(rows); break;
-        case 'people': setPeople(rows); break;
+        case 'people': setPeople([...rows].sort((a, b) => teamRank(a.initial) - teamRank(b.initial) || a.created_at?.localeCompare(b.created_at ?? '') || 0)); break;
         case 'workspace_summary': setSummary(rows[0] ?? null); break;
         case 'members': setMembers(rows); break;
         case 'invites': setInvites(rows); break;
+        case 'events': setEvents(rows); break;
       }
     },
     [workspaceId],
@@ -88,7 +93,8 @@ export function useBoard(workspaceId: string, userId: string) {
         timers.current[table] = window.setTimeout(() => {
           refresh(table);
           if (table === 'tasks') refresh('activity');
-          if (table === 'comments') refresh('activity');
+          if (table === 'comments' || table === 'events') refresh('activity');
+          if (table === 'events') refresh('tasks'); // deleting an event unlinks its tasks
         }, 120);
       });
     }
@@ -304,6 +310,66 @@ export function useBoard(workspaceId: string, userId: string) {
     [track, workspaceId, userId, refresh],
   );
 
+  // ---------------------------------------------------------------- calendar events
+  type EventFields = Pick<CalEvent, 'title' | 'kind' | 'start_date' | 'end_date' | 'description' | 'is_major'>;
+
+  const createEvent = useCallback(
+    (d: EventFields): Promise<CalEvent | undefined> =>
+      track(async () => {
+        const { data, error } = await sb.from('events').insert({ ...d, title: d.title.trim(), workspace_id: workspaceId }).select().single();
+        if (error) throw error;
+        setEvents((es) => [...es, data as CalEvent]);
+        return data as CalEvent;
+      }),
+    [track, workspaceId],
+  );
+
+  /** Versioned event edit: returns the latest copy on a conflict instead of overwriting. */
+  const saveEvent = useCallback(
+    (id: string, baseVersion: number, patch: Partial<EventFields>) =>
+      track(async (): Promise<{ status: 'ok'; event: CalEvent } | { status: 'conflict'; latest: CalEvent } | { status: 'deleted' }> => {
+        const { data, error } = await sb.from('events').update({ ...patch, version: baseVersion + 1 }).eq('id', id).eq('version', baseVersion).select();
+        if (error && error.code !== '40001') throw error;
+        if (!error && data?.length === 1) {
+          setEvents((es) => es.map((e) => (e.id === id ? (data[0] as CalEvent) : e)));
+          return { status: 'ok', event: data[0] as CalEvent };
+        }
+        const { data: latest, error: e2 } = await sb.from('events').select('*').eq('id', id).maybeSingle();
+        if (e2) throw e2;
+        if (!latest) return { status: 'deleted' };
+        setEvents((es) => es.map((e) => (e.id === id ? (latest as CalEvent) : e)));
+        return { status: 'conflict', latest: latest as CalEvent };
+      }),
+    [track],
+  );
+
+  const deleteEvent = useCallback(
+    (id: string) =>
+      track(async () => {
+        const { error } = await sb.from('events').delete().eq('id', id);
+        if (error) throw error;
+        setEvents((es) => es.filter((e) => e.id !== id));
+        await refresh('tasks', 'activity'); // linked tasks were unlinked by the database
+      }),
+    [track, refresh],
+  );
+
+  /** Link/unlink one task. Only touches event_id, against the latest copy, so it never reverts other edits. */
+  const setTaskEvent = useCallback(
+    (taskId: string, eventId: string | null): Promise<boolean> =>
+      track(async () => {
+        for (let attempt = 0; attempt < 4; attempt++) {
+          const cur = await fetchTask(taskId);
+          if (!cur) throw new Error('A task you were linking was deleted by someone else.');
+          if (cur.event_id === eventId) return true;
+          const r = await updateTask(taskId, cur.version, { event_id: eventId });
+          if (r.ok) return true;
+        }
+        throw new Error('Could not update a task link because the task keeps changing. Try again.');
+      }).then((r) => !!r),
+    [track, updateTask],
+  );
+
   // ---------------------------------------------------------------- summary
   const saveSummary = useCallback(
     (baseVersion: number, patch: Partial<Summary>): Promise<{ status: 'ok' } | { status: 'conflict'; latest: Summary } | undefined> =>
@@ -423,7 +489,8 @@ export function useBoard(workspaceId: string, userId: string) {
 
   return {
     workspaceId, userId, loading, live, saving, error, setError, notice, setNotice, today, thursday,
-    people, tasks, comments, activity, summary, members, invites, me, person, actorName,
+    people, tasks, comments, activity, summary, members, invites, events, me, person, actorName,
+    createEvent, saveEvent, deleteEvent, setTaskEvent,
     createTask, saveTask, moveTask, addEvidence, addNoDeliverable, removeEvidence, carryForward, deleteTask, addComment,
     saveSummary, savePerson, addPerson, addInvite, removeInvite, removeMember, loadDemo, removeDemo, refresh,
   };

@@ -11,7 +11,7 @@ import { AddEvidence, EvidenceList } from './Evidence';
 import { useUI } from '../ctx';
 
 const LABEL: Record<string, string> = {
-  title: 'Title', owner_id: 'Owner', supporters: 'Supporters', workstream: 'Workstream', due_date: 'Due date',
+  title: 'Title', start_date: 'Start date', event_id: 'Calendar event', owner_id: 'Owner', supporters: 'Supporters', workstream: 'Workstream', due_date: 'Due date',
   deliverable: 'Deliverable', priority: 'Priority', col: 'Column', blocked: 'Blocked', blocker: 'Blocker', dependencies: 'Dependencies',
 };
 
@@ -73,7 +73,8 @@ export function TaskDetail({ taskId, onClose }: { taskId: string; onClose: () =>
   const show = (f: keyof TaskDraft, v: unknown): string => {
     if (f === 'owner_id') return board.person(v as string)?.initial ?? '?';
     if (f === 'supporters') return (v as string[]).map((i) => board.person(i)?.initial ?? '?').join(', ') || 'none';
-    if (f === 'due_date') return formatDate(v as string);
+    if (f === 'due_date' || f === 'start_date') return v ? formatDate(v as string) : '(none)';
+    if (f === 'event_id') return board.events.find((e) => e.id === v)?.title ?? '(not linked)';
     if (f === 'col') return colTitle(v as string);
     if (f === 'blocked') return v ? 'Blocked' : 'Not blocked';
     return String(v ?? '') || '(empty)';
@@ -109,7 +110,7 @@ export function TaskDetail({ taskId, onClose }: { taskId: string; onClose: () =>
           {live.col === 'completed' && <button onClick={() => move(live, 'in_progress')}>Reopen task</button>}
         </div>
 
-        <TaskFields d={draft} set={(p) => { setDraft({ ...draft, ...p }); setMessage(''); }} people={board.people} errors={dirty ? errors : {}} lockBlocked={live.col === 'completed'} />
+        <TaskFields d={draft} set={(p) => { setDraft({ ...draft, ...p }); setMessage(''); }} people={board.people} events={board.events} errors={dirty ? errors : {}} lockBlocked={live.col === 'completed'} />
 
         <div className="row">
           <button className="primary" disabled={!dirty || board.saving > 0 || Object.keys(errors).length > 0} onClick={() => save(base, mineDraft)}>
