@@ -5,6 +5,20 @@ import { deckKind, validateDeckFile } from '../lib/files';
 import { hostOf, parseLink } from '../lib/links';
 import { meetingAfter, nextMeeting, nextSubmissionDue } from '../lib/slides';
 import { useUI } from '../ctx';
+import LINKS from '../../config/links.json';
+
+/** The team's shared Google Drive folder. The link never changes, so it lives in config/links.json. */
+function DriveBox() {
+  return (
+    <section className="drive-box" aria-label="Team Google Drive">
+      <div>
+        <h2><span aria-hidden="true">📁 </span>Team Google Drive</h2>
+        <p className="muted small-text">All our documents, reports and files in one place.</p>
+      </div>
+      <a className="open-slides" href={LINKS.driveUrl} target="_blank" rel="noopener noreferrer">Open Google Drive <span aria-hidden="true">↗</span><span className="sr-only"> (opens in a new tab)</span></a>
+    </section>
+  );
+}
 
 /** The working deck: a link (e.g. Canva) to the presentation being edited for the next meeting. */
 function WorkingDeck() {
@@ -210,6 +224,7 @@ export function SlidesLinks() {
   if (!board.summary) return null;
   return (
     <div className="slides">
+      <DriveBox />
       <div className="slides-links">
         <WorkingDeck />
         <SubmittedDeck />

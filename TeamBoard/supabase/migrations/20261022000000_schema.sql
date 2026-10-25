@@ -249,7 +249,7 @@ begin
   insert into activity(workspace_id, entity, actor_id, action, detail)
   values (ws,
           case tg_table_name when 'people' then 'person' when 'invites' then 'invite'
-                             when 'members' then 'member' when 'events' then 'event' else 'summary' end,
+                             when 'members' then 'member' when 'events' then 'event' when 'orders' then 'order' else 'summary' end,
           auth.uid(), lower(tg_op), r);
   return null;
 end $$;
@@ -292,6 +292,53 @@ end $$;
 create trigger events_guard_t before insert or update on events
   for each row execute function events_guard();
 create trigger events_log_t after insert or update or delete on events
+  for each row execute function generic_log();
+
+-- Budget: parts and supplies orders (one row per order line).
+create table orders (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references workspaces on delete cascade,
+  item text not null check (length(trim(item)) > 0),           -- part name / number
+  description text,                                            -- what it's for
+  quantity int not null default 1 check (quantity >= 1),
+  unit_price numeric(10, 2) not null default 0 check (unit_price >= 0),
+  fidelity text,                                               -- e.g. "Rev 2", "Rev 2+"
+  supplier text,
+  date_needed date,
+  date_ordered date,
+  wufoo_no text,                                               -- the request-form number
+  date_received date,
+  notes text,
+  product_link text check (product_link is null or product_link ~* '^https?://\S+$'),
+  version int not null default 1,
+  created_by uuid references auth.users on delete set null default auth.uid(),
+  updated_by uuid references auth.users on delete set null,
+  updated_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  constraint received_after_ordered check (date_received is null or date_ordered is not null)
+);
+create index orders_ws_idx on orders (workspace_id, date_needed);
+
+create or replace function orders_guard() returns trigger
+language plpgsql set search_path = public as $$
+begin
+  if tg_op = 'UPDATE' then
+    if new.workspace_id <> old.workspace_id then
+      raise exception 'workspace_id is immutable';
+    end if;
+    if new.version <> old.version + 1 then
+      raise exception 'stale_version' using errcode = '40001';
+    end if;
+  else
+    new.version := 1;
+  end if;
+  new.updated_by := auth.uid();
+  new.updated_at := now();
+  return new;
+end $$;
+create trigger orders_guard_t before insert or update on orders
+  for each row execute function orders_guard();
+create trigger orders_log_t after insert or update or delete on orders
   for each row execute function generic_log();
 
 -- ---------------------------------------------------------------- RPCs
@@ -410,6 +457,7 @@ alter table comments enable row level security;
 alter table activity enable row level security;
 alter table workspace_summary enable row level security;
 alter table events enable row level security;
+alter table orders enable row level security;
 alter table slide_archive enable row level security;
 
 create policy ws_read      on workspaces for select using (is_member(id));
@@ -432,6 +480,7 @@ create policy summary_read on workspace_summary for select using (is_member(work
 create policy archive_read on slide_archive for select using (is_member(workspace_id));
 create policy archive_add  on slide_archive for insert with check (is_member(workspace_id));
 create policy archive_del  on slide_archive for delete using (is_member(workspace_id));
+create policy orders_all   on orders for all using (is_member(workspace_id)) with check (is_member(workspace_id));
 create policy events_all   on events for all using (is_member(workspace_id)) with check (is_member(workspace_id));
 create policy summary_edit on workspace_summary for update using (is_member(workspace_id)) with check (is_member(workspace_id));
 
@@ -462,4 +511,4 @@ create policy "slide decks: members delete" on storage.objects for delete to aut
 
 -- ---------------------------------------------------------------- realtime
 
-alter publication supabase_realtime add table tasks, comments, activity, workspace_summary, people, members, invites, events, slide_archive;
+alter publication supabase_realtime add table tasks, comments, activity, workspace_summary, people, members, invites, events, slide_archive, orders;

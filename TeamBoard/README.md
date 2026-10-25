@@ -50,6 +50,9 @@ Open the site in two browsers signed in as two different teammates, then:
 
 If you ran the earlier `db/schema.sql` on a Supabase project, paste **`db/add-calendar.sql`** into the SQL Editor and run it **once** (it only adds new things; existing data is untouched). New projects just run `db/schema.sql`, which already includes it. Then upload the new build.
 
+### Budget release
+Paste **`db/add-budget.sql`** into the SQL Editor and run it **once** (safe to run twice; adds only the new orders table), then upload the new build. Then on the **Budget** tab use **Import from spreadsheet** to paste your existing rows. Fresh projects: already in `db/schema.sql`.
+
 ### Customer slides release (working deck link / submitted deck file / past decks)
 Paste **`db/add-slides.sql`** into the SQL Editor and run it **once**, then upload the new build. It creates the private `slide-decks` file bucket and its access rules, and is safe whether or not you ran an earlier slides script (earlier links are kept) and safe to run twice. Fresh projects: already in `db/schema.sql`.
 

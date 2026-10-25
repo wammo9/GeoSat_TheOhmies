@@ -34,6 +34,10 @@ See `config/workstreams.json`.
 - **Thursday review view:** inspect deliverables, record evidence, identify integration dependencies, explicitly carry unfinished tasks forward with a revised due date.
 - Never auto-complete tasks or change due dates when a meeting passes.
 
+## Budget tab and Drive box (added later)
+- **Budget tab:** the team's parts/supplies orders (item, what it's for, quantity, price each, total, fidelity, supplier, date needed/ordered/received, WUFOO #, notes, product link). Anyone can add, edit and delete orders; status is derived from the dates (not ordered / on its way / received) with a "Late" flag for unreceived orders past their needed date; totals by stage; search and filters; **Import from spreadsheet** (paste copied rows, duplicates skipped) and **Export CSV**. Edits sync live, are attributed, and warn on simultaneous changes.
+- **Team Google Drive box** at the top of the Board, above the slide decks (link in `config/links.json`, written without Google's per-account `/u/1/` part so it works for everyone).
+
 ## Customer slides (added later)
 The team meets Wednesdays; slides are submitted Fridays. At the top of the Board:
 - **Working deck** — the link to the deck being edited for the next Wednesday meeting (date shown automatically, plus the next Friday due date).

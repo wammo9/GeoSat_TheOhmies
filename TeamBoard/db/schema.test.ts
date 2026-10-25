@@ -234,3 +234,33 @@ describe('customer slides (working deck, submitted deck, past decks)', () => {
     expect((await as(A, `select count(*)::int n from slide_archive`))[0].n).toBe(2);
   });
 });
+
+describe('budget orders', () => {
+  let order = '';
+  it('members add orders; outsiders cannot see or write them', async () => {
+    order = (await as(B, `insert into orders(workspace_id,item,description,quantity,unit_price,supplier,date_needed,date_ordered,wufoo_no,product_link) values ('${ws}','INA219AIDR','Current Sensor',10,1.62,'Mouser','2026-10-01','2026-09-22','1','https://www.mouser.com/x') returning id`))[0].id;
+    expect((await as(A, `select count(*)::int n from orders`))[0].n).toBe(1);
+    expect((await as(C, `select count(*)::int n from orders`))[0].n).toBe(0);
+    expect(await fails(C, `insert into orders(workspace_id,item) values ('${ws}','x')`)).toBeTruthy();
+  });
+  it('validates quantity, price, links and the received date', async () => {
+    const ins = (cols: string, vals: string) => `insert into orders(workspace_id,item,${cols}) values ('${ws}','x',${vals})`;
+    expect(await fails(A, ins('quantity', '0'))).toBeTruthy();
+    expect(await fails(A, ins('unit_price', '-1'))).toBeTruthy();
+    expect(await fails(A, ins('product_link', `'javascript:alert(1)'`))).toBeTruthy();
+    expect(await fails(A, `insert into orders(workspace_id,item) values ('${ws}','  ')`)).toBeTruthy();
+    expect(await fails(A, ins('date_received', `'2026-10-05'`))).toBeTruthy(); // received but never ordered
+    expect(await fails(A, ins('date_ordered, date_received', `'2026-10-01','2026-10-05'`))).toBeNull();
+  });
+  it('rejects stale edits instead of overwriting', async () => {
+    expect((await as(A, `update orders set quantity=12, version=2 where id='${order}' and version=1 returning id`)).length).toBe(1);
+    expect((await as(B, `update orders set quantity=20, version=2 where id='${order}' and version=1 returning id`)).length).toBe(0);
+    expect((await fails(B, `update orders set quantity=20 where id='${order}'`))?.code).toBe('40001');
+  });
+  it('logs order changes with who did them', async () => {
+    const rows = await as<any>(A, `select action, actor_id, detail from activity where entity='order' order by id`);
+    expect(rows[0]).toMatchObject({ action: 'insert', actor_id: B });
+    expect(rows[0].detail.item).toBe('INA219AIDR');
+    expect(rows.some((r) => r.action === 'update' && r.actor_id === A)).toBe(true);
+  });
+});

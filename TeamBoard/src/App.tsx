@@ -19,6 +19,7 @@ import { EvidencePrompt } from './components/Evidence';
 import { TuesdayPlanning, ThursdayReview } from './components/Planning';
 import { AllTasks } from './components/AllTasks';
 import { CalendarView } from './components/Calendar';
+import { Budget } from './components/Budget';
 import { Team } from './components/Team';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
@@ -121,7 +122,7 @@ function Workspace({ ws, session }: { ws: string; session: Session }) {
               </div>
             )}
             <ErrorBoundary resetKey={view}>
-            {view !== 'team' && view !== 'calendar' && <Summaries />}
+            {view !== 'team' && view !== 'calendar' && view !== 'budget' && <Summaries />}
 
             {view === 'board' && (
               <>
@@ -147,6 +148,7 @@ function Workspace({ ws, session }: { ws: string; session: Session }) {
                 <CalendarView tasks={filtered} />
               </>
             )}
+            {view === 'budget' && <Budget />}
             {view === 'all' && (
               <>
                 <FilterBar f={filters} set={setFilters} shown={filtered.length} total={board.tasks.length} />

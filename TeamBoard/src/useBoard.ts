@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { errMsg, supabase as sb } from './supabase';
-import type { Activity, CalEvent, SlideArchive, ColId, Comment, Evidence, Invite, Member, Person, Summary, Task, TaskDraft } from './types';
+import type { Activity, CalEvent, Order, OrderDraft, SlideArchive, ColId, Comment, Evidence, Invite, Member, Person, Summary, Task, TaskDraft } from './types';
 import { addDays, nextWeekday, THURSDAY, todayDenver } from './lib/dates';
 import DEMO_SEED from '../seed/demo-tasks.json';
 import { contentTypeFor, DECK_BUCKET, storagePath } from './lib/files';
@@ -16,7 +16,7 @@ export type SaveResult =
 
 const TEAM_ORDER = ['J', 'A', 'W', 'M', 'T', 'B'];
 const teamRank = (i: string) => { const n = TEAM_ORDER.indexOf(i.toUpperCase()); return n < 0 ? 99 : n; }; // keep the team's usual order
-const TABLES = ['tasks', 'comments', 'activity', 'people', 'workspace_summary', 'members', 'invites', 'events', 'slide_archive'] as const;
+const TABLES = ['tasks', 'comments', 'activity', 'people', 'workspace_summary', 'members', 'invites', 'events', 'slide_archive', 'orders'] as const;
 type Table = (typeof TABLES)[number];
 
 const DEMO = DEMO_SEED.tasks;
@@ -31,6 +31,7 @@ export function useBoard(workspaceId: string, userId: string) {
   const [invites, setInvites] = useState<Invite[]>([]);
   const [events, setEvents] = useState<CalEvent[]>([]);
   const [slideArchive, setSlideArchive] = useState<SlideArchive[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [live, setLive] = useState<Live>('connecting');
   const [liveDetail, setLiveDetail] = useState('');
@@ -58,6 +59,7 @@ export function useBoard(workspaceId: string, userId: string) {
         case 'members': res = await q('members'); break;
         case 'invites': res = await q('invites'); break;
         case 'events': res = await q('events').order('start_date'); break;
+        case 'orders': res = await q('orders'); break;
         case 'slide_archive': res = await q('slide_archive').order('submitted_on', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false }); break;
       }
       if (res.error) throw res.error;
@@ -73,6 +75,7 @@ export function useBoard(workspaceId: string, userId: string) {
         // tolerate a database that hasn't had the recurring-events upgrade yet
         case 'events': setEvents(rows.map((r) => ({ ...r, recur: r.recur ?? 'none', recur_until: r.recur_until ?? null, recur_skip: r.recur_skip ?? [] }))); break;
         case 'slide_archive': setSlideArchive(rows); break;
+        case 'orders': setOrders(rows.map((r) => ({ ...r, quantity: Number(r.quantity), unit_price: Number(r.unit_price) }))); break;
       }
     },
     [workspaceId],
@@ -138,6 +141,7 @@ export function useBoard(workspaceId: string, userId: string) {
     const probes: [string, string, () => PromiseLike<{ error: { message: string } | null }>][] = [
       ['db/add-calendar.sql', 'Calendar events and task start dates', () => sb.from('tasks').select('start_date,event_id').limit(0)],
       ['db/add-recurring.sql', 'Repeating events', () => sb.from('events').select('recur,recur_until,recur_skip').limit(0)],
+      ['db/add-budget.sql', 'The Budget tab (orders)', () => sb.from('orders').select('id').limit(0)],
       ['db/add-slides.sql', 'Customer slides and file uploads', async () => {
         const a = await sb.from('workspace_summary').select('slides_working_url,slides_submitted_file').limit(0);
         return a.error ? a : sb.from('slide_archive').select('file_path').limit(0);
@@ -486,6 +490,63 @@ export function useBoard(workspaceId: string, userId: string) {
     [track],
   );
 
+  // ---------------------------------------------------------------- budget orders
+  const createOrder = useCallback(
+    (d: OrderDraft): Promise<Order | undefined> =>
+      track(async () => {
+        const { data, error } = await sb.from('orders').insert({ ...d, item: d.item.trim(), workspace_id: workspaceId }).select().single();
+        if (error) throw error;
+        const o = { ...(data as Order), quantity: Number(data.quantity), unit_price: Number(data.unit_price) };
+        setOrders((os) => [...os, o]);
+        return o;
+      }),
+    [track, workspaceId],
+  );
+
+  /** Versioned order edit: returns the latest copy on a conflict instead of overwriting. */
+  const saveOrder = useCallback(
+    (id: string, baseVersion: number, patch: Partial<OrderDraft>) =>
+      track(async (): Promise<{ status: 'ok'; order: Order } | { status: 'conflict'; latest: Order } | { status: 'deleted' }> => {
+        const fix = (r: any): Order => ({ ...r, quantity: Number(r.quantity), unit_price: Number(r.unit_price) });
+        const { data, error } = await sb.from('orders').update({ ...patch, version: baseVersion + 1 }).eq('id', id).eq('version', baseVersion).select();
+        if (error && error.code !== '40001') throw error;
+        if (!error && data?.length === 1) {
+          setOrders((os) => os.map((o) => (o.id === id ? fix(data[0]) : o)));
+          return { status: 'ok', order: fix(data[0]) };
+        }
+        const { data: latest, error: e2 } = await sb.from('orders').select('*').eq('id', id).maybeSingle();
+        if (e2) throw e2;
+        if (!latest) return { status: 'deleted' };
+        setOrders((os) => os.map((o) => (o.id === id ? fix(latest) : o)));
+        return { status: 'conflict', latest: fix(latest) };
+      }),
+    [track],
+  );
+
+  const deleteOrder = useCallback(
+    (id: string) =>
+      track(async () => {
+        const { error } = await sb.from('orders').delete().eq('id', id);
+        if (error) throw error;
+        setOrders((os) => os.filter((o) => o.id !== id));
+      }),
+    [track],
+  );
+
+  /** Add many orders at once (pasted from a spreadsheet). All-or-nothing per batch of 200. */
+  const importOrders = useCallback(
+    (rows: OrderDraft[]) =>
+      track(async () => {
+        for (let i = 0; i < rows.length; i += 200) {
+          const { error } = await sb.from('orders').insert(rows.slice(i, i + 200).map((r) => ({ ...r, workspace_id: workspaceId })));
+          if (error) throw error;
+        }
+        await refresh('orders', 'activity');
+        return rows.length;
+      }),
+    [track, workspaceId, refresh],
+  );
+
   // ---------------------------------------------------------------- team
   const savePerson = useCallback(
     (p: Person, patch: Partial<Person>) =>
@@ -587,7 +648,8 @@ export function useBoard(workspaceId: string, userId: string) {
 
   return {
     workspaceId, userId, loading, live, liveDetail, reconnect, dbUpdates, saving, error, setError, notice, setNotice, today, thursday,
-    people, tasks, comments, activity, summary, members, invites, events, slideArchive, me, person, actorName,
+    people, tasks, comments, activity, summary, members, invites, events, slideArchive, orders, me, person, actorName,
+    createOrder, saveOrder, deleteOrder, importOrders,
     submitSlidesCopy, deckDownloadUrl, removeSubmittedDeck, removeArchivedSlides,
     createEvent, saveEvent, deleteEvent, setTaskEvent,
     createTask, saveTask, moveTask, addEvidence, addNoDeliverable, removeEvidence, carryForward, deleteTask, addComment,

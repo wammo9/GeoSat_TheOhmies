@@ -40,9 +40,9 @@ function AccountMenu({ board, email, onSignOut }: { board: Board; email: string;
   );
 }
 
-export type View = 'board' | 'tuesday' | 'thursday' | 'calendar' | 'all' | 'team';
+export type View = 'board' | 'tuesday' | 'thursday' | 'calendar' | 'budget' | 'all' | 'team';
 const TABS: [View, string][] = [
-  ['board', 'Board'], ['tuesday', 'Tuesday planning'], ['thursday', 'Thursday review'], ['calendar', 'Calendar'], ['all', 'All tasks'], ['team', 'Team'],
+  ['board', 'Board'], ['tuesday', 'Tuesday planning'], ['thursday', 'Thursday review'], ['calendar', 'Calendar'], ['budget', 'Budget'], ['all', 'All tasks'], ['team', 'Team'],
 ];
 
 export function Header({ view, setView, board, email, onSignOut, onNew }: {
@@ -84,6 +84,12 @@ export function Header({ view, setView, board, email, onSignOut, onNew }: {
 }
 
 export function Toasts({ board }: { board: Board }) {
+  const { notice, setNotice } = board;
+  useEffect(() => {
+    if (!notice) return;
+    const t = window.setTimeout(() => setNotice(null), 6000); // confirmations fade; errors stay until dismissed
+    return () => window.clearTimeout(t);
+  }, [notice, setNotice]);
   if (!board.error && !board.notice) return null;
   return (
     <div className="toasts">

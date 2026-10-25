@@ -127,6 +127,31 @@ export interface SlideArchive {
   created_at: string;
 }
 
+export interface Order {
+  id: string;
+  workspace_id: string;
+  item: string;
+  description: string | null;
+  quantity: number;
+  unit_price: number;
+  fidelity: string | null;
+  supplier: string | null;
+  date_needed: string | null;
+  date_ordered: string | null;
+  wufoo_no: string | null;
+  date_received: string | null;
+  notes: string | null;
+  product_link: string | null;
+  version: number;
+  updated_by: string | null;
+  updated_at: string;
+}
+
+export type OrderDraft = Pick<
+  Order,
+  'item' | 'description' | 'quantity' | 'unit_price' | 'fidelity' | 'supplier' | 'date_needed' | 'date_ordered' | 'wufoo_no' | 'date_received' | 'notes' | 'product_link'
+>;
+
 export interface Member {
   user_id: string;
   email: string;
