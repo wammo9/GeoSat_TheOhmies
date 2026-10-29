@@ -1,0 +1,185 @@
+/*
+ * main.c - GeoSat sensor module, Rev 2.1 (u-blox SAM-M10Q GPS).
+ *
+ *   - GPS stream (UBX-NAV-PVT + NMEA) drained continuously
+ *   - every 1 s: TMP117, LSM6DSOX, LIS3MDL, INA219, GPS printed to serial
+ *
+ * Serial output is on the ST-LINK virtual COM port at 115200 8N1.
+ */
+#include "board.h"
+#include "clock.h"
+#include "tick.h"
+#include "debug_uart.h"
+#include "i2c.h"
+#include "adc.h"
+#include "imu.h"
+#include "ina219.h"
+#include "tmp117.h"
+#include "gps.h"
+#include "gps_link.h"
+#include <stdio.h>
+
+#define PRINT_INTERVAL_MS 1000U
+
+static bool    tmp_ok;
+static bool    lsm_ok;
+static uint8_t lis_addr;   /* 0 = not found */
+static bool    ina_ok;
+
+static void i2c_scan(void)
+{
+  printf("I2C scan:");
+  int found = 0;
+  for (uint8_t a = 0x08; a < 0x78; a++) {
+    if (i2c_probe(a) == 0) {
+      printf(" 0x%02X", a);
+      found++;
+    }
+  }
+  printf(found ? "\n" : " (nothing - check wiring / pull-ups / SB16+SB18)\n");
+}
+
+static void setup(void)
+{
+  clock_init();
+  tick_init();
+  board_led_init();
+  debug_uart_init(115200);
+
+  printf("\n=== NUCLEO-L432KC Multi-Sensor Initialization ===\n");
+  printf("SYSCLK %lu Hz\n", (unsigned long)SystemCoreClock);
+
+  /* 1. ADC, used only to measure the real supply voltage (VREFINT) */
+  adc_init();
+
+  /* 2. I2C bus @ 400 kHz */
+  i2c_init();
+  i2c_scan();
+
+  /* 2b. TMP117 temperature sensor (continuous, 500 ms cycle, 8x averaged) */
+  tmp_ok = tmp117_setup(TMP117_ADDR);
+  printf(tmp_ok ? "[OK] TMP117 initialized (0x%02X).\n"
+                : "[FAIL] TMP117 not detected at 0x%02X!\n", TMP117_ADDR);
+
+  /* 3. LSM6DSOX */
+  lsm_ok = lsm6dsox_setup(LSM6DSOX_ADDR);
+  printf(lsm_ok ? "[OK] LSM6DSOX initialized (0x%02X).\n"
+                : "[FAIL] LSM6DSOX not detected at 0x%02X!\n", LSM6DSOX_ADDR);
+
+  /* 4. LIS3MDL - the ESP32 code used 0x1E but printed 0x1C, so try both */
+  lis_addr = lis3mdl_setup(LIS3MDL_ADDR_A, LIS3MDL_ADDR_B);
+  if (lis_addr) {
+    printf("[OK] LIS3MDL initialized (0x%02X).\n", lis_addr);
+  } else {
+    printf("[FAIL] LIS3MDL not detected at 0x%02X or 0x%02X!\n", LIS3MDL_ADDR_A, LIS3MDL_ADDR_B);
+  }
+
+  /* 5. INA219 */
+  ina_ok = ina219_setup(INA219_ADDR);
+  printf(ina_ok ? "[OK] INA219 initialized (0x%02X).\n"
+                : "[FAIL] INA219 not detected at 0x%02X!\n", INA219_ADDR);
+
+  /* 6. GPS: open the link, then switch the SAM-M10Q to UBX-NAV-PVT output */
+  gps_link_init();
+  printf("[OK] GPS link: %s.\n", gps_link_describe());
+  if (gps_setup(1000)) {
+    printf("[OK] SAM-M10Q configured (UBX ACK): NAV-PVT + GGA/RMC.\n");
+  } else {
+#if GPS_LINK_I2C
+    printf("[WARN] SAM-M10Q did not ACK config. Is 0x42 in the I2C scan above?\n"
+           "       Check SDA/SCL, 3V3 and GND.\n");
+#else
+    printf("[WARN] SAM-M10Q did not ACK config. Check D1 (PA9) -> module RXD,\n"
+           "       baud, and power. NMEA-only fallback still works if D0 is wired.\n");
+#endif
+  }
+  printf("==================================================\n\n");
+}
+
+static void print_readings(void)
+{
+  printf("---------------- SENSOR READINGS ----------------\n");
+
+  if (tmp_ok) {
+    int16_t raw;
+    if (tmp117_read_raw(&raw)) {
+      float t = tmp117_raw_to_c(raw);
+      printf("TMP117 Temp:   %.3f C (%.3f F)\n", t, t * 1.8f + 32.0f);
+    } else {
+      printf("TMP117:        read error\n");
+    }
+  }
+  printf("Supply VDDA:   %lu mV\n", (unsigned long)adc_read_vdda_mv());
+
+  if (lsm_ok) {
+    vec3f_t a, g;
+    if (lsm6dsox_read(&a, &g)) {
+      printf("Accel [m/s^2]: X=%.2f, Y=%.2f, Z=%.2f\n", a.x, a.y, a.z);
+      printf("Gyro  [rad/s]: X=%.2f, Y=%.2f, Z=%.2f\n", g.x, g.y, g.z);
+    } else {
+      printf("LSM6DSOX:      read error\n");
+    }
+  }
+
+  if (lis_addr) {
+    vec3f_t m;
+    if (lis3mdl_read(&m)) {
+      printf("Mag    [uT]:   X=%.2f, Y=%.2f, Z=%.2f\n", m.x, m.y, m.z);
+    } else {
+      printf("LIS3MDL:       read error\n");
+    }
+  }
+
+  if (ina_ok) {
+    float v, i, p;
+    if (ina219_read(&v, &i, &p)) {
+      printf("INA219:        %.2f V | %.2f mA | %.2f mW\n", v, i, p);
+    } else {
+      printf("INA219:        read error\n");
+    }
+  }
+
+  const gps_fix_t *fix = gps_get();
+  printf("GPS:           ");
+  if (fix->location_valid) {
+    printf("Lat: %.7f, Lon: %.7f | Alt: %.1fm | Sats: %d\n",
+           fix->lat_deg, fix->lon_deg, (double)fix->alt_m, fix->sats);
+    if (fix->from_pvt) {
+      printf("GPS quality:   %s fix | hAcc %.2fm | vAcc %.2fm | pDOP %.2f\n",
+             fix->fix_type == 3U ? "3D" : (fix->fix_type == 2U ? "2D" : "other"),
+             (double)fix->h_acc_m, (double)fix->v_acc_m, (double)fix->pdop);
+    }
+  } else {
+    printf("Searching... (Sats: %d, Chars: %lu, NMEA: %lu, UBX: %lu, UBX err: %lu, link err: %lu)\n",
+           fix->sats, (unsigned long)fix->chars_processed, (unsigned long)fix->sentences_ok,
+           (unsigned long)fix->ubx_frames, (unsigned long)fix->ubx_errors,
+           (unsigned long)gps_link_overflows());
+  }
+  if (fix->time_valid) {
+    printf("GPS UTC:       %04u-%02u-%02u %02u:%02u:%02u\n",
+           (unsigned)fix->year, (unsigned)fix->month, (unsigned)fix->day,
+           (unsigned)fix->hour, (unsigned)fix->min, (unsigned)fix->sec);
+  }
+  printf("\n");
+}
+
+int main(void)
+{
+  setup();
+
+  uint32_t last_print = millis();
+  while (1) {
+    /* Parse whatever NMEA has arrived (ISR has been buffering it) */
+    gps_poll();
+
+    if ((millis() - last_print) >= PRINT_INTERVAL_MS) {
+      last_print += PRINT_INTERVAL_MS;
+      board_led_toggle();   /* heartbeat */
+      print_readings();
+    }
+
+    /* Sleep until the next interrupt (1 ms SysTick, or a GPS byte in UART mode).
+     * First step toward low power; Stop 2 comes later. */
+    __WFI();
+  }
+}
