@@ -1,0 +1,21 @@
+Rev 2 accelerometer noise floor
+generated 2026-11-10 11:29:12
+
+Board still for the whole capture; drift slower than 5 s removed.
+
+sensor    axis   rate Hz   rms ug  density ug/rtHz     band Hz
+ADXL355   x        125.0    897.5            130.6        1-25
+ADXL355   y        125.0    681.3             60.1        1-25
+ADXL355   z        125.0    264.9             26.2        1-25
+LSM6DSOX  x         25.0    901.2            199.9        1-10
+LSM6DSOX  y         25.0   1068.3            238.6        1-10
+LSM6DSOX  z         25.0    520.7            140.3        1-10
+    LSM6DSOX worst-axis density 239 ug/rtHz (approximate, reference only)
+
+The ADXL355's noise density is 3.6x lower than the LSM6DSOX's (mean over axes).
+ADXL355 datasheet: 22.5 ug/rtHz at +/-2 g. Z includes the 1 g it's measuring, so a tiny tilt shows up as drift there; the detrend removes that.
+
+CHECKS
+  [FAIL] ADXL355 noise density  worst axis 130.6 ug/rtHz (limit 45; datasheet 22.5 ug/rtHz)
+
+OVERALL: FAIL
