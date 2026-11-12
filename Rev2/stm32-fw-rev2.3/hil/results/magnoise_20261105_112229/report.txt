@@ -1,0 +1,22 @@
+Rev 2 magnetometer noise floor
+generated 2026-11-05 11:28:26
+
+Board still for the whole capture; drift slower than 5 s removed.
+
+sensor   axis   rate Hz   raw nT  10 Hz nT  step, 1 read  step, 10 Hz avg
+RM3100   x         49.6     30.9      12.2          92.8             36.5
+RM3100   y         49.6     25.7      11.6          77.0             34.7
+RM3100   z         49.6     25.0      11.7          74.9             35.0
+    RM3100 reading one conversion per 100 ms instead: worst-axis step 92.8 nT (misses the 30 nT target)
+LIS3MDL  x         49.6    258.7     169.8         776.2            509.3
+LIS3MDL  y         49.6    269.9     187.9         809.7            563.6
+LIS3MDL  z         49.6    407.1     273.8        1221.4            821.3
+    LIS3MDL worst-axis 3-sigma step: 821.3 nT (reference only)
+
+At 10 Hz the RM3100 is 17.9x quieter than the LIS3MDL (mean over axes).
+RM3100 datasheet: ~15 nT noise at cycle count 200 (75 LSB/uT, 13 nT per count). LIS3MDL: ~320 nT rms in ultra-high-performance mode.
+
+CHECKS
+  [FAIL] RM3100 can resolve the target step at 10 Hz (averaged)  worst axis 3-sigma 36.5 nT (target 30 nT)
+
+OVERALL: FAIL
