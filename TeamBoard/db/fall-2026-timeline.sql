@@ -7,9 +7,9 @@
 -- Week numbering: Week 10 = Oct 19-23 (PDR week), so Week 1 = Aug 17 and Oct 26-Nov 1 is Week 11.  Events of type "Plan" are our own suggested
 -- checkpoints worked backwards from the manual's lead times (they are not course deadlines). They use the "Plan" event type.
 
--- Adds the "Plan" event type (same as db/add-plan-type.sql; harmless if already applied).
+-- Adds the "Plan" event type (same as db/add-plan-type.sql; harmless if already applied). Also keeps the "PCB" type allowed.
 alter table events drop constraint if exists events_kind_check;
-alter table events add constraint events_kind_check check (kind in ('meeting','milestone','deadline','review','plan','other'));
+alter table events add constraint events_kind_check check (kind in ('meeting','milestone','deadline','review','plan','pcb','other'));
 
 do $$ begin
   if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'events' and column_name = 'recur') then

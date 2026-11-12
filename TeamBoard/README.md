@@ -53,6 +53,12 @@ If you ran the earlier `db/schema.sql` on a Supabase project, paste **`db/add-ca
 ### Fall 2026 semester timeline (optional, one-time)
 Paste **`db/fall-2026-timeline.sql`** into the SQL Editor and run it **once** to fill the Calendar with the Canvas deadlines, the manual's sprint phases, and our suggested checkpoints (those use their own **Plan** event type, shown with a dashed amber edge, and are labelled SUGGESTED). The file also adds the Plan type itself (`db/add-plan-type.sql` does just that, if you want only the type). It needs the Calendar and Recurring-events upgrades first, adds nothing twice if re-run, and every event can be edited or deleted in the app afterwards.
 
+### Task archive release
+Paste **`db/add-archive.sql`** into the SQL Editor and run it **once** (safe to run twice; no tasks are changed or deleted), then upload the new build. Completed tasks then leave the Board's Completed column 7 days after they're finished (or immediately if someone chooses "Move to Archive") and live on their own **Archive** tab, so the Board stays uncluttered. Without the SQL the board keeps working; the yellow notice names the file to run.
+
+### PCB event type release
+Paste **`db/add-pcb-type.sql`** into the SQL Editor and run it **once** (safe to run twice) to add **PCB** as a calendar event type. PCB events appear in the month view only on their first and last day (the Gantt timeline shows the whole span), so a long PCB stretch doesn't fill the calendar.
+
 ### Order requests release
 Paste **`db/add-requests.sql`** into the SQL Editor and run it **once** (after `db/add-budget.sql`; safe to run twice; adds only the new requests table), then upload the new build. Fresh projects: already in `db/schema.sql`.
 

@@ -39,6 +39,8 @@ export interface Task {
   dependencies: string | null;
   evidence: Evidence[];
   is_demo: boolean;
+  completed_at: string | null; // when it entered Completed (set by the database)
+  archived_at: string | null; // set when someone archives it
   version: number;
   updated_by: string | null;
   updated_at: string;
@@ -62,7 +64,7 @@ export type TaskDraft = Pick<
   | 'dependencies'
 >;
 
-export type EventKind = 'meeting' | 'milestone' | 'deadline' | 'review' | 'plan' | 'other';
+export type EventKind = 'meeting' | 'milestone' | 'deadline' | 'review' | 'plan' | 'pcb' | 'other';
 
 export type Recur = 'none' | 'daily' | 'weekly' | 'biweekly' | 'monthly';
 

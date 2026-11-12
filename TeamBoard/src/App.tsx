@@ -21,6 +21,7 @@ import { AllTasks } from './components/AllTasks';
 import { CalendarView } from './components/Calendar';
 import { Budget } from './components/Budget';
 import { Team } from './components/Team';
+import { ArchiveView } from './components/ArchiveView';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 export default function App() {
@@ -122,11 +123,10 @@ function Workspace({ ws, session }: { ws: string; session: Session }) {
               </div>
             )}
             <ErrorBoundary resetKey={view}>
-            {view !== 'team' && view !== 'calendar' && view !== 'budget' && <Summaries />}
+            {view !== 'team' && view !== 'calendar' && view !== 'budget' && view !== 'archive' && view !== 'slides' && <Summaries />}
 
             {view === 'board' && (
               <>
-                <SlidesLinks />
                 <Roster picked={filters.owner} onPick={(id) => setFilters({ ...filters, owner: filters.owner === id ? '' : id })} />
                 <FilterBar f={filters} set={setFilters} shown={filtered.length} total={board.tasks.length} />
                 {board.tasks.length === 0 ? (
@@ -149,6 +149,8 @@ function Workspace({ ws, session }: { ws: string; session: Session }) {
               </>
             )}
             {view === 'budget' && <Budget />}
+            {view === 'archive' && <ArchiveView />}
+            {view === 'slides' && <SlidesLinks />}
             {view === 'all' && (
               <>
                 <FilterBar f={filters} set={setFilters} shown={filtered.length} total={board.tasks.length} />

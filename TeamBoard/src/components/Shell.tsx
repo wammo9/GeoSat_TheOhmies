@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { textOn } from '../lib/color';
+import { isArchived } from '../lib/rules';
 import type { Board } from '../useBoard';
 
 export function Wave() {
@@ -40,14 +41,15 @@ function AccountMenu({ board, email, onSignOut }: { board: Board; email: string;
   );
 }
 
-export type View = 'board' | 'tuesday' | 'thursday' | 'calendar' | 'budget' | 'all' | 'team';
+export type View = 'board' | 'tuesday' | 'thursday' | 'calendar' | 'budget' | 'slides' | 'all' | 'archive' | 'team';
 const TABS: [View, string][] = [
-  ['board', 'Board'], ['tuesday', 'Tuesday planning'], ['thursday', 'Thursday review'], ['calendar', 'Calendar'], ['budget', 'Budget'], ['all', 'All tasks'], ['team', 'Team'],
+  ['board', 'Board'], ['tuesday', 'Tuesday planning'], ['thursday', 'Thursday review'], ['calendar', 'Calendar'], ['budget', 'Budget'], ['slides', 'Slides & Drive'], ['all', 'All tasks'], ['archive', 'Archive'], ['team', 'Team'],
 ];
 
 export function Header({ view, setView, board, email, onSignOut, onNew }: {
   view: View; setView: (v: View) => void; board: Board; email: string; onSignOut: () => void; onNew: () => void;
 }) {
+  const archivedCount = board.tasks.filter((t) => isArchived(t)).length;
   const waitingRequests = board.orderRequests.filter((r) => r.status === 'pending').length;
   const status =
     board.live === 'live' ? <span className="dot ok">Live</span>
@@ -77,6 +79,7 @@ export function Header({ view, setView, board, email, onSignOut, onNew }: {
         {TABS.map(([id, label]) => (
           <button key={id} className={view === id ? 'tab on' : 'tab'} aria-current={view === id ? 'page' : undefined} onClick={() => setView(id)}>
             {label}
+            {id === 'archive' && archivedCount > 0 && <span className="tab-count" aria-label={`, ${archivedCount} archived tasks`}>{archivedCount}</span>}
             {id === 'budget' && waitingRequests > 0 && <span className="tab-badge" aria-label={`, ${waitingRequests} request${waitingRequests === 1 ? '' : 's'} waiting for approval`}>{waitingRequests}</span>}
           </button>
         ))}

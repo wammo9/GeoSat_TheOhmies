@@ -8,6 +8,7 @@ export const KINDS: { id: EventKind; label: string; icon: string }[] = [
   { id: 'deadline', label: 'Deadline', icon: '⚑' },
   { id: 'review', label: 'Review', icon: '🔎' },
   { id: 'plan', label: 'Plan', icon: '🧭' },
+  { id: 'pcb', label: 'PCB', icon: '🔌' },
   { id: 'other', label: 'Other', icon: '📌' },
 ];
 export const kindInfo = (k: EventKind) => KINDS.find((x) => x.id === k) ?? KINDS.find((x) => x.id === 'other')!;
@@ -43,10 +44,10 @@ export function monthGrid(iso: string): string[][] {
 
 /**
  * The order events are shown in wherever they're listed (each day box, the Gantt events lane):
- * phases and overall context first (e.g. the Rev 3 sprint, type "Other"), then milestones, reviews, meetings,
- * then deadlines, and our own Plan items last.
+ * phases and overall context first (e.g. the Rev 3 sprint, type "Other"), then milestones, PCB dates, reviews,
+ * meetings, then deadlines, and our own Plan items last.
  */
-export const KIND_ORDER: EventKind[] = ['other', 'milestone', 'review', 'meeting', 'deadline', 'plan'];
+export const KIND_ORDER: EventKind[] = ['other', 'milestone', 'pcb', 'review', 'meeting', 'deadline', 'plan'];
 export const kindRank = (k: EventKind) => { const i = KIND_ORDER.indexOf(k); return i < 0 ? 0 : i; };
 
 /** Within a type: big events first, then whatever began earliest, then A-Z. */
@@ -128,6 +129,14 @@ export function occurrences(e: CalEvent, from: string, to: string): Occurrence[]
   }
   return out;
 }
+
+/**
+ * Which days of the month grid an occurrence is drawn on. Most events appear on every day they span,
+ * but PCB events (design windows, order-to-delivery lead times, ...) are often long; those mark only their
+ * first and last day so a stretch of PCB planning doesn't fill the calendar. The Gantt timeline still shows the full span.
+ */
+export const showsOnMonthDay = (o: Pick<Occurrence, 'event' | 'start' | 'end'>, day: string) =>
+  o.event.kind !== 'pcb' || day === o.start || day === o.end;
 
 export const occurrencesOnDay = (events: CalEvent[], day: string): Occurrence[] =>
   events.flatMap((e) => occurrences(e, day, day));

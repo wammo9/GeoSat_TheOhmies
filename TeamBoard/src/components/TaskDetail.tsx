@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Task, TaskDraft } from '../types';
 import { changedFields, threeWayMerge, toDraft } from '../lib/merge';
-import { COLUMNS, colTitle, validateDraft } from '../lib/rules';
+import { COLUMNS, canUnarchive, colTitle, isArchived, validateDraft } from '../lib/rules';
 import { formatDate, formatStamp } from '../lib/dates';
 import { describeChange } from '../lib/activity';
 import { Badges } from './Chips';
@@ -87,7 +87,7 @@ export function TaskDetail({ taskId, onClose }: { taskId: string; onClose: () =>
         <header className="drawer-head">
           <div>
             <h2>{live.title}</h2>
-            <div className="card-row"><span className="tag">{colTitle(live.col)}</span><Badges task={live} today={board.today} /></div>
+            <div className="card-row"><span className="tag">{colTitle(live.col)}</span>{isArchived(live) && <span className="badge archived"><span aria-hidden="true">📦 </span>Archived</span>}<Badges task={live} today={board.today} /></div>
           </div>
           <button onClick={onClose} aria-label="Close task panel">✕</button>
         </header>
@@ -108,6 +108,8 @@ export function TaskDetail({ taskId, onClose }: { taskId: string; onClose: () =>
             </select>
           </label>
           {live.col === 'completed' && <button onClick={() => move(live, 'in_progress')}>Reopen task</button>}
+          {live.col === 'completed' && !isArchived(live) && <button onClick={() => board.archiveTask(live, true)} title="Tuck it out of the Completed column into the Archive">📦 Archive</button>}
+          {canUnarchive(live) && <button onClick={() => board.archiveTask(live, false)}>Unarchive</button>}
         </div>
 
         <TaskFields d={draft} set={(p) => { setDraft({ ...draft, ...p }); setMessage(''); }} people={board.people} events={board.events} errors={dirty ? errors : {}} lockBlocked={live.col === 'completed'} />

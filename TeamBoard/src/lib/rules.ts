@@ -18,6 +18,21 @@ export function hasEvidence(ev: Evidence[] | undefined | null): boolean {
 export const isOverdue = (t: Pick<Task, 'col' | 'due_date'>, today: string) =>
   t.col !== 'completed' && t.due_date < today;
 
+/** Completed tasks fall into the Archive this many days after completion (or sooner, if someone archives them). */
+export const ARCHIVE_AFTER_DAYS = 7;
+const DAY_MS = 86_400_000;
+
+/** In the Archive: completed, and either archived by hand or completed more than a week ago. */
+export function isArchived(t: Pick<Task, 'col' | 'completed_at' | 'archived_at'>, now: number = Date.now()): boolean {
+  if (t.col !== 'completed') return false;
+  if (t.archived_at) return true;
+  return !!t.completed_at && now - Date.parse(t.completed_at) > ARCHIVE_AFTER_DAYS * DAY_MS;
+}
+
+/** Archived by hand while still recent, so un-archiving really brings it back to the Completed column. */
+export const canUnarchive = (t: Pick<Task, 'col' | 'completed_at' | 'archived_at'>, now: number = Date.now()) =>
+  t.col === 'completed' && !!t.archived_at && !!t.completed_at && now - Date.parse(t.completed_at) <= ARCHIVE_AFTER_DAYS * DAY_MS;
+
 export const isOpen = (t: Pick<Task, 'col'>) => t.col !== 'completed';
 
 export function evidenceFrom(text: string, by: string): Evidence {

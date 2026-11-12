@@ -64,7 +64,7 @@ create table events (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references workspaces on delete cascade,
   title text not null check (length(trim(title)) > 0),
-  kind text not null default 'other' check (kind in ('meeting','milestone','deadline','review','plan','other')),
+  kind text not null default 'other' check (kind in ('meeting','milestone','deadline','review','plan','pcb','other')),
   start_date date not null,                        -- calendar dates in America/Denver
   end_date date,                                   -- null = a single-day event
   description text,
@@ -101,6 +101,8 @@ create table tasks (
   dependencies text,                               -- integration dependencies
   evidence jsonb not null default '[]'::jsonb,     -- [{type:'link'|'text', value, added_by, added_at}]
   is_demo boolean not null default false,
+  completed_at timestamptz,                        -- when it entered Completed (set by the database; cleared if reopened)
+  archived_at timestamptz,                         -- set when someone archives a completed task (older ones also fall into the archive automatically)
   version int not null default 1,                  -- optimistic concurrency token
   created_by uuid references auth.users on delete set null default auth.uid(),
   updated_by uuid references auth.users on delete set null,
@@ -185,6 +187,16 @@ begin
      and not exists (select 1 from events where id = new.event_id and workspace_id = new.workspace_id) then
     raise exception 'event must belong to this workspace';
   end if;
+  -- completion bookkeeping: remember when a task entered Completed; reopening clears it (and any archive flag)
+  if new.col = 'completed' then
+    if tg_op = 'INSERT' or old.col <> 'completed' then
+      new.completed_at := now();
+      new.archived_at := null;
+    end if;
+  else
+    new.completed_at := null;
+    new.archived_at := null;
+  end if;
   new.updated_by := auth.uid();
   new.updated_at := now();
   return new;
@@ -206,7 +218,7 @@ begin
     from jsonb_each(to_jsonb(new)) n
     join jsonb_each(to_jsonb(old)) o using (key)
     where n.value is distinct from o.value
-      and n.key not in ('version', 'updated_at', 'updated_by');
+      and n.key not in ('version', 'updated_at', 'updated_by', 'completed_at');
     if diff is not null then
       act := case when diff ? 'col' then 'moved' else 'edited' end;
       insert into activity(workspace_id, task_id, actor_id, action, detail)

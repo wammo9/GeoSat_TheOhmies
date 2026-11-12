@@ -2,7 +2,7 @@ import { DndContext, KeyboardSensor, PointerSensor, useDraggable, useDroppable, 
 import { useCallback, useState } from 'react';
 import type { ColId, Task } from '../types';
 import { byDueThenPriority } from '../lib/filters';
-import { COLUMNS } from '../lib/rules';
+import { COLUMNS, isArchived } from '../lib/rules';
 import { Badges, DueDate, OwnerChip } from './Chips';
 import { useUI } from '../ctx';
 
@@ -22,9 +22,11 @@ function CardBody({ task, floating }: { task: Task; floating?: boolean }) {
       {!floating && (
         <label className="move">
           <span className="sr-only">Move “{task.title}” to column</span>
-          <select value="" aria-label={`Move “${task.title}” to`} onChange={(e) => e.target.value && move(task, e.target.value as ColId)}>
+          <select value="" aria-label={`Move “${task.title}” to`}
+            onChange={(e) => { const v = e.target.value; if (v === '__archive') board.archiveTask(task, true); else if (v) move(task, v as ColId); }}>
             <option value="">Move to…</option>
             {COLUMNS.filter((c) => c.id !== task.col).map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
+            {task.col === 'completed' && <option value="__archive">📦 Move to Archive</option>}
           </select>
         </label>
       )}
@@ -68,6 +70,9 @@ function Column({ id, title, tasks, total }: { id: ColId; title: string; tasks: 
 export function KanbanBoard({ tasks, allTasks }: { tasks: Task[]; allTasks: Task[] }) {
   const { board, move } = useUI();
   const [dragging, setDragging] = useState<Task | null>(null);
+  const now = Date.now();
+  // the Completed column only shows recent completions; older ones live in the Archive
+  const inColumn = (id: ColId, list: Task[]) => list.filter((t) => t.col === id && !(id === 'completed' && isArchived(t, now)));
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor),
@@ -82,8 +87,8 @@ export function KanbanBoard({ tasks, allTasks }: { tasks: Task[]; allTasks: Task
     <DndContext sensors={sensors} onDragStart={onStart} onDragEnd={onEnd} onDragCancel={() => setDragging(null)}>
       <div className="kanban">
         {COLUMNS.map((c) => (
-          <Column key={c.id} id={c.id} title={c.title} total={allTasks.filter((t) => t.col === c.id).length}
-            tasks={tasks.filter((t) => t.col === c.id).sort(byDueThenPriority)} />
+          <Column key={c.id} id={c.id} title={c.title} total={inColumn(c.id, allTasks).length}
+            tasks={inColumn(c.id, tasks).sort(byDueThenPriority)} />
         ))}
       </div>
       <DragOverlay>{dragging ? <article className="card floating" style={{ ['--owner' as any]: board.person(dragging.owner_id)?.color ?? '#9fb3c8' }}><CardBody task={dragging} floating /></article> : null}</DragOverlay>

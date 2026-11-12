@@ -434,3 +434,47 @@ describe('purchase requests', () => {
     expect(rows.some((r) => r.action === 'update' && r.detail.status === 'approved' && r.actor_id === A)).toBe(true);
   });
 });
+
+describe('task archive bookkeeping', () => {
+  let tid = '';
+  const ver = async () => (await as(A, `select version v from tasks where id='${tid}'`))[0].v as number;
+  it('stamps the completion time when a task is completed, and never lets a client fake it', async () => {
+    tid = (await as(A, `insert into tasks(workspace_id,title,owner_id,workstream,due_date,deliverable,completed_at,archived_at) values ('${ws}','Archive me',$1,'Hardware','2026-11-01','d','2001-01-01','2001-01-01') returning id`, [owner]))[0].id;
+    const fresh = (await as(A, `select completed_at, archived_at from tasks where id='${tid}'`))[0];
+    expect(fresh).toEqual({ completed_at: null, archived_at: null }); // not completed, so the fake values were wiped
+    const v = await ver();
+    const done = (await as(A, `update tasks set col='completed', evidence='[{"type":"text","value":"x","added_at":"2026-11-01T00:00:00Z"}]'::jsonb, completed_at='2001-01-01', archived_at=now(), version=${v + 1} where id='${tid}' and version=${v} returning completed_at > now() - interval '1 minute' as recent, archived_at`))[0];
+    expect(done).toEqual({ recent: true, archived_at: null }); // set by the server; a new completion starts un-archived
+  });
+  it('lets people archive and unarchive a completed task', async () => {
+    let v = await ver();
+    expect((await as(A, `update tasks set archived_at=now(), version=${v + 1} where id='${tid}' and version=${v} returning archived_at is not null as a`))[0].a).toBe(true);
+    v = await ver();
+    expect((await as(A, `update tasks set archived_at=null, version=${v + 1} where id='${tid}' and version=${v} returning archived_at`))[0].archived_at).toBeNull();
+  });
+  it('clears completion and archive when the task is reopened, and keeps the completion time quiet in the log', async () => {
+    let v = await ver();
+    await as(A, `update tasks set archived_at=now(), version=${v + 1} where id='${tid}' and version=${v}`);
+    v = await ver();
+    const reopened = (await as(A, `update tasks set col='in_progress', version=${v + 1} where id='${tid}' and version=${v} returning completed_at, archived_at`))[0];
+    expect(reopened).toEqual({ completed_at: null, archived_at: null });
+    const logged = await as<any>(A, `select detail from activity where task_id='${tid}' and action='moved' order by id`);
+    expect(logged.length).toBeGreaterThan(0);
+    for (const l of logged) expect(Object.keys(l.detail)).not.toContain('completed_at'); // bookkeeping isn't someone's edit
+    expect(Object.keys(logged.at(-1).detail)).toContain('col');
+  });
+});
+
+describe('PCB event type', () => {
+  it('is accepted, and unknown types are still rejected', async () => {
+    expect((await as(A, `insert into events(workspace_id,title,kind,start_date,end_date) values ('${ws}','PCB order to delivery','pcb','2026-11-16','2026-11-27') returning kind`))[0].kind).toBe('pcb');
+    expect(await fails(A, `insert into events(workspace_id,title,kind,start_date) values ('${ws}','Bad','banana','2026-11-16')`)).toBeTruthy();
+  });
+  it('survives re-running the timeline and plan-type scripts while PCB events exist', async () => {
+    await db.exec(`select set_config('request.jwt.claim.sub','',false)`);
+    await expect(db.exec(readFileSync(new URL('./fall-2026-timeline.sql', import.meta.url), 'utf8'))).resolves.not.toThrow();
+    await expect(db.exec(readFileSync(new URL('./add-plan-type.sql', import.meta.url), 'utf8'))).resolves.not.toThrow();
+    await expect(db.exec(readFileSync(new URL('./add-pcb-type.sql', import.meta.url), 'utf8'))).resolves.not.toThrow();
+    expect((await db.query<any>(`select count(*)::int n from events where kind = 'pcb'`)).rows[0].n).toBe(1);
+  });
+});

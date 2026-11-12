@@ -67,7 +67,7 @@ export function useBoard(workspaceId: string, userId: string) {
       if (res.error) throw res.error;
       const rows = res.data as any[];
       switch (t) {
-        case 'tasks': setTasks(rows); break;
+        case 'tasks': setTasks(rows.map((r) => ({ ...r, completed_at: r.completed_at ?? null, archived_at: r.archived_at ?? null }))); break; // tolerate a database without the archive upgrade
         case 'comments': setComments(rows); break;
         case 'activity': setActivity(rows); break;
         case 'people': setPeople([...rows].sort((a, b) => teamRank(a.initial) - teamRank(b.initial) || a.created_at?.localeCompare(b.created_at ?? '') || 0)); break;
@@ -143,6 +143,7 @@ export function useBoard(workspaceId: string, userId: string) {
     const missing = /does not exist|schema cache|could not find|column/i;
     const probes: [string, string, () => PromiseLike<{ error: { message: string } | null }>][] = [
       ['db/add-calendar.sql', 'Calendar events and task start dates', () => sb.from('tasks').select('start_date,event_id').limit(0)],
+      ['db/add-archive.sql', 'Task archive (completed tasks out of the way)', () => sb.from('tasks').select('completed_at,archived_at').limit(0)],
       ['db/add-recurring.sql', 'Repeating events', () => sb.from('events').select('recur,recur_until,recur_skip').limit(0)],
       ['db/add-budget.sql', 'The Budget tab (orders)', () => sb.from('orders').select('id').limit(0)],
       ['db/add-requests.sql', 'Order requests on the Budget tab', () => sb.from('order_requests').select('id').limit(0)],
@@ -271,6 +272,31 @@ export function useBoard(workspaceId: string, userId: string) {
       return 'ok';
     },
     [track, updateTask, refresh],
+  );
+
+  /** Move a completed task into the Archive (or back out). Only touches archived_at. */
+  const archiveTask = useCallback(
+    async (task: Task, archive: boolean): Promise<'ok' | 'conflict' | 'error'> => {
+      const r = await track(() => updateTask(task.id, task.version, { archived_at: archive ? new Date().toISOString() : null }));
+      if (!r) return 'error';
+      if (!r.ok) {
+        setError(r.reason === 'deleted' ? `“${task.title}” was deleted by someone else.` : `“${task.title}” was just changed by someone else, so it wasn’t ${archive ? 'archived' : 'restored'}. Review the latest and try again.`);
+        return 'conflict';
+      }
+      return 'ok';
+    },
+    [track, updateTask],
+  );
+
+  /** Archive several completed tasks at once; reports how many worked. */
+  const archiveMany = useCallback(
+    async (list: Task[]): Promise<number> => {
+      let n = 0;
+      for (const t of list) if ((await archiveTask(t, true)) === 'ok') n++;
+      if (n > 0) setNotice(`Archived ${n} completed task${n === 1 ? '' : 's'}. Find them any time under Archive.`);
+      return n;
+    },
+    [archiveTask],
   );
 
   /** Append/remove evidence against the latest server copy so concurrent evidence is never lost. */
@@ -718,7 +744,7 @@ export function useBoard(workspaceId: string, userId: string) {
     createOrder, saveOrder, deleteOrder, importOrders,
     submitSlidesCopy, deckDownloadUrl, removeSubmittedDeck, removeArchivedSlides,
     createEvent, saveEvent, deleteEvent, setTaskEvent,
-    createTask, saveTask, moveTask, addEvidence, addNoDeliverable, removeEvidence, carryForward, deleteTask, addComment,
+    archiveTask, archiveMany, createTask, saveTask, moveTask, addEvidence, addNoDeliverable, removeEvidence, carryForward, deleteTask, addComment,
     saveSummary, savePerson, addPerson, addInvite, removeInvite, removeMember, loadDemo, removeDemo, refresh,
   };
 }

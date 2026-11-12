@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { CalEvent, Task } from '../types';
-import { addMonths, compareOccurrences, kindInfo, monthGrid, monthLabel, occurrencesOnDay } from '../lib/calendar';
-import { formatDate, weekday } from '../lib/dates';
+import { addMonths, compareOccurrences, kindInfo, monthGrid, monthLabel, occurrencesOnDay, showsOnMonthDay } from '../lib/calendar';
+import { formatDate, shortDate, weekday } from '../lib/dates';
 import { isOverdue } from '../lib/rules';
 import { useUI } from '../ctx';
 
@@ -30,7 +30,7 @@ export function MonthView({ tasks, events, showTasks, onOpenEvent, onAddEvent }:
         {DOW.map((d) => <div key={d} className="dow" role="columnheader">{d}</div>)}
         {weeks.flat().map((day) => {
           // fixed order: phases (e.g. Rev 3) first, then milestones, deadlines, and Plan items last
-          const evs = occurrencesOnDay(events, day).sort(compareOccurrences);
+          const evs = occurrencesOnDay(events, day).filter((o) => showsOnMonthDay(o, day)).sort(compareOccurrences);
           const due = showTasks ? tasks.filter((t) => t.due_date === day) : [];
           const items = evs.length + due.length;
           const open = expanded === day;
@@ -51,8 +51,9 @@ export function MonthView({ tasks, events, showTasks, onOpenEvent, onAddEvent }:
                 const e = o.event;
                 return (
                   <button key={`${e.id}-${o.start}`} className={`pill ev k-${e.kind}${o.start < day ? ' cont' : ''}`} onClick={() => onOpenEvent(e.id, o.start)}
-                    title={`${kindInfo(e.kind).label}: ${e.title}${e.recur !== 'none' ? ' (repeats)' : ''}`}>
+                    title={`${kindInfo(e.kind).label}: ${e.title}${o.end !== o.start ? ` (${shortDate(o.start)} → ${shortDate(o.end)})` : ''}${e.recur !== 'none' ? ' (repeats)' : ''}`}>
                     <span aria-hidden="true">{e.is_major ? '★' : kindInfo(e.kind).icon}{e.recur !== 'none' ? '↻' : ''}</span> {e.title}
+                    {e.kind === 'pcb' && o.end !== o.start && <span className="pcb-span">{day === o.start ? ` → ${shortDate(o.end)}` : ' (ends)'}</span>}
                     <span className="sr-only"> ({kindInfo(e.kind).label}{e.is_major ? ', big event' : ''}{e.recur !== 'none' ? ', repeating' : ''})</span>
                   </button>
                 );

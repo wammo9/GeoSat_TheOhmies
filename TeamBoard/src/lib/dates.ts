@@ -42,6 +42,11 @@ export function formatDate(iso: string | null | undefined): string {
   });
 }
 
+/** "Nov 13" */
+export function shortDate(iso: string): string {
+  return noon(iso).toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' });
+}
+
 export function formatStamp(ts: string): string {
   return new Date(ts).toLocaleString('en-US', {
     timeZone: TZ,

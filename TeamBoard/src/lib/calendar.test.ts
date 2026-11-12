@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CalEvent, Task } from '../types';
-import { KIND_ORDER, KINDS, compareOccurrences, kindInfo, kindRank, addMonths, bar, countdown, linkedStats, monthGrid, occurrences, occurrencesOnDay, recurLabel, taskSpan, upcomingMajor, weekStart } from './calendar';
+import { eachDay, KIND_ORDER, KINDS, compareOccurrences, kindInfo, kindRank, showsOnMonthDay, addMonths, bar, countdown, linkedStats, monthGrid, occurrences, occurrencesOnDay, recurLabel, taskSpan, upcomingMajor, weekStart } from './calendar';
 
 const ev = (o: Partial<CalEvent>): CalEvent => ({
   id: 'e', workspace_id: 'w', title: 'E', kind: 'other', start_date: '2026-11-12', end_date: null, description: null,
@@ -9,7 +9,7 @@ const ev = (o: Partial<CalEvent>): CalEvent => ({
 const task = (o: Partial<Task>): Task => ({
   id: 't', workspace_id: 'w', title: 'T', owner_id: 'J', supporters: [], workstream: 'Hardware', start_date: null,
   due_date: '2026-10-22', event_id: null, deliverable: 'd', priority: 'Medium', col: 'backlog', blocked: false, blocker: null,
-  dependencies: null, evidence: [], is_demo: false, version: 1, updated_by: null, updated_at: '', created_at: '', ...o,
+  dependencies: null, evidence: [], is_demo: false, completed_at: null, archived_at: null, version: 1, updated_by: null, updated_at: '', created_at: '', ...o,
 });
 
 describe('month grid', () => {
@@ -118,7 +118,7 @@ describe('recurring events', () => {
 
 describe('event types', () => {
   it('has a distinct Plan type, and unknown types fall back to Other', () => {
-    expect(KINDS.map((k) => k.id)).toEqual(['meeting', 'milestone', 'deadline', 'review', 'plan', 'other']);
+    expect(KINDS.map((k) => k.id)).toEqual(['meeting', 'milestone', 'deadline', 'review', 'plan', 'pcb', 'other']);
     expect(kindInfo('plan').label).toBe('Plan');
     expect(new Set(KINDS.map((k) => k.icon)).size).toBe(KINDS.length); // every type has its own icon
     expect(kindInfo('mystery' as any).label).toBe('Other');
@@ -137,7 +137,8 @@ describe('order of events inside a day box', () => {
       e('milestone', 'milestone'), e('Rev 3 sprint', 'other', { start_date: '2026-10-26', end_date: '2026-11-15' }),
     ];
     expect(order(events)).toEqual(['Rev 3 sprint', 'milestone', 'review', 'meeting', 'deadline B', 'plan: dry run']);
-    expect(KIND_ORDER).toEqual(['other', 'milestone', 'review', 'meeting', 'deadline', 'plan']);
+    expect(order([...events, e('pcb window', 'pcb')])).toEqual(['Rev 3 sprint', 'milestone', 'pcb window', 'review', 'meeting', 'deadline B', 'plan: dry run']);
+    expect(KIND_ORDER).toEqual(['other', 'milestone', 'pcb', 'review', 'meeting', 'deadline', 'plan']);
   });
   it('lists big events first within a type, then earliest start, then A-Z', () => {
     const events = [
@@ -152,5 +153,30 @@ describe('order of events inside a day box', () => {
   });
   it('treats an unknown type like Other, so it can never crash or vanish', () => {
     expect(kindRank('mystery' as any)).toBe(kindRank('other'));
+  });
+});
+
+describe('PCB events in the month grid', () => {
+  const pcb = ev({ id: 'p', title: 'PCB order to delivery', kind: 'pcb', start_date: '2026-11-16', end_date: '2026-11-27' });
+  const days = (e: CalEvent, from: string, to: string) =>
+    eachDay(from, to).filter((d) => occurrencesOnDay([e], d).some((o) => showsOnMonthDay(o, d)));
+
+  it('marks only the first and last day of a long PCB event, not every day in between', () => {
+    expect(days(pcb, '2026-11-01', '2026-11-30')).toEqual(['2026-11-16', '2026-11-27']);
+  });
+  it('shows a single-day PCB event once', () => {
+    expect(days({ ...pcb, end_date: null }, '2026-11-01', '2026-11-30')).toEqual(['2026-11-16']);
+  });
+  it('still draws every other type on every day it spans', () => {
+    expect(days({ ...pcb, kind: 'other' }, '2026-11-01', '2026-11-30')).toHaveLength(12);
+  });
+  it('keeps the full span for the Gantt timeline (the occurrence itself is unchanged)', () => {
+    const o = occurrences(pcb, '2026-11-01', '2026-11-30');
+    expect(o).toHaveLength(1);
+    expect([o[0].start, o[0].end]).toEqual(['2026-11-16', '2026-11-27']);
+  });
+  it('works for repeating PCB events too', () => {
+    const weekly = { ...pcb, recur: 'weekly' as const, end_date: '2026-11-18' };
+    expect(days(weekly, '2026-11-16', '2026-11-30')).toEqual(['2026-11-16', '2026-11-18', '2026-11-23', '2026-11-25', '2026-11-30']);
   });
 });

@@ -36,11 +36,13 @@ See `config/workstreams.json`.
 
 ## Budget tab and Drive box (added later)
 - **Budget tab:** the team's parts/supplies orders (item, what it's for, quantity, price each, total, fidelity, supplier, date needed/ordered/received, WUFOO #, notes, product link). Anyone can add, edit and delete orders; status is derived from the dates (not ordered / on its way / received) with a "Late" flag for unreceived orders past their needed date; totals by stage; search and filters; **Import from spreadsheet** (paste copied rows, duplicates skipped) and **Export CSV**. Edits sync live, are attributed, and warn on simultaneous changes.
+- **Task archive:** the Board's Completed column shows only recent completions; tasks completed more than 7 days ago, or archived by hand (card menu or task panel), move to a separate **Archive** tab (grouped by month, searchable, filterable; Reopen or Unarchive; "Archive the N in Completed now" for a bulk tidy-up). Nothing is deleted; archived tasks also appear in All tasks, marked Archived.
+- **PCB calendar type:** events of type PCB are drawn in the month view only on their first and last day so long PCB planning spans don't clog it; the Gantt shows the full span.
 - **Order requests** (Budget tab → Requests): anyone can request an item (what, why, quantity, estimated price, where to buy, needed-by date, link). The team approves or declines (with an optional reason); the server records who requested and who decided. An approved request becomes a budget order in one click (**Turn into order** pre-fills the order form), after which it shows as *Added to the budget*. A badge on the Budget tab counts requests waiting for approval. Requesters can edit or withdraw their own requests; admins can remove any.
-- **Team Google Drive box** at the top of the Board, above the slide decks (link in `config/links.json`, written without Google's per-account `/u/1/` part so it works for everyone).
+- **Team Google Drive box** on the Slides & Drive tab, above the slide decks (link in `config/links.json`, written without Google's per-account `/u/1/` part so it works for everyone).
 
 ## Customer slides (added later)
-The team meets Wednesdays; slides are submitted Fridays. At the top of the Board:
+The team meets Wednesdays; slides are submitted Fridays. On the **Slides & Drive** tab (kept off the Board to keep it uncluttered), along with the team Google Drive box:
 - **Working deck** — the link to the deck being edited for the next Wednesday meeting (date shown automatically, plus the next Friday due date).
 - **Submitted deck** — the frozen Friday copy, **uploaded as a PowerPoint (.pptx/.ppt) or PDF file** (up to 50 MB, kept in a private Supabase Storage bucket) that any team member can download, with its submission date and the Wednesday meeting it's presented at. **Submit a new copy** files the previous submitted deck (file included) under **Past submitted decks**, atomically, so history is never lost; each past deck can be downloaded.
 Anyone can edit; only http(s) links are accepted; changes sync live and warn on simultaneous edits.

@@ -4,7 +4,7 @@ import { addDays, nextWeekday, todayDenver, TUESDAY, THURSDAY, weekday } from '.
 import { EMPTY_FILTERS, matches } from './filters';
 import { threeWayMerge, toDraft } from './merge';
 import { buildRoster } from './roster';
-import { completionError, evidenceFrom, hasEvidence, isOverdue, noDeliverableEvidence, validateDraft } from './rules';
+import { canUnarchive, isArchived, completionError, evidenceFrom, hasEvidence, isOverdue, noDeliverableEvidence, validateDraft } from './rules';
 import { textOn } from './color';
 
 const person = (id: string, initial: string): Person => ({
@@ -13,7 +13,7 @@ const person = (id: string, initial: string): Person => ({
 const task = (o: Partial<Task>): Task => ({
   id: 't', workspace_id: 'w', title: 'T', owner_id: 'J', supporters: [], workstream: 'Hardware', start_date: null, event_id: null,
   due_date: '2026-10-22', deliverable: 'd', priority: 'Medium', col: 'backlog', blocked: false, blocker: null,
-  dependencies: null, evidence: [], is_demo: false, version: 1, updated_by: null, updated_at: '', created_at: '', ...o,
+  dependencies: null, evidence: [], is_demo: false, completed_at: null, archived_at: null, version: 1, updated_by: null, updated_at: '', created_at: '', ...o,
 });
 
 describe('dates (America/Denver)', () => {
@@ -126,5 +126,30 @@ describe('color', () => {
   it('picks readable text', () => {
     expect(textOn('#E6B800')).toBe('#1B2A3A');
     expect(textOn('#7C4DBE')).toBe('#FFFFFF');
+  });
+});
+
+describe('archive rules', () => {
+  const now = Date.parse('2026-11-12T12:00:00Z');
+  const done = (daysAgo: number, o: Partial<Task> = {}) => task({ col: 'completed', completed_at: new Date(now - daysAgo * 86400000).toISOString(), ...o });
+
+  it('keeps recent completions on the board and files week-old ones in the archive', () => {
+    expect(isArchived(done(1), now)).toBe(false);
+    expect(isArchived(done(7), now)).toBe(false); // exactly a week: still on the board
+    expect(isArchived(done(7.1), now)).toBe(true);
+    expect(isArchived(done(30), now)).toBe(true);
+  });
+  it('archives a recent task when someone archives it by hand', () => {
+    expect(isArchived(done(1, { archived_at: '2026-11-12T10:00:00Z' }), now)).toBe(true);
+  });
+  it('never archives open tasks, and tolerates a database without the archive columns', () => {
+    expect(isArchived(task({ col: 'in_progress', completed_at: '2020-01-01T00:00:00Z' }), now)).toBe(false);
+    expect(isArchived(task({ col: 'completed' }), now)).toBe(false); // no completion time known: leave it on the board
+  });
+  it('only offers Unarchive when that would really bring it back', () => {
+    expect(canUnarchive(done(1, { archived_at: '2026-11-12T10:00:00Z' }), now)).toBe(true);
+    expect(canUnarchive(done(30, { archived_at: '2026-11-12T10:00:00Z' }), now)).toBe(false); // too old: it would just fall back in
+    expect(canUnarchive(done(30), now)).toBe(false);
+    expect(canUnarchive(done(1), now)).toBe(false);
   });
 });

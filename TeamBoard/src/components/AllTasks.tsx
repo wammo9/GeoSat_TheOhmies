@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Task } from '../types';
 import { byDueThenPriority } from '../lib/filters';
-import { colTitle } from '../lib/rules';
+import { colTitle, isArchived } from '../lib/rules';
 import { Badges, DueDate, OwnerChip } from './Chips';
 import { useUI } from '../ctx';
 
@@ -28,7 +28,7 @@ export function AllTasks({ tasks }: { tasks: Task[] }) {
                 <td>{colTitle(t.col)}</td>
                 <td>{t.workstream}</td>
                 <td>{t.priority}</td>
-                <td><Badges task={t} today={board.today} /></td>
+                <td><Badges task={t} today={board.today} />{isArchived(t) && <span className="badge archived"><span aria-hidden="true">📦 </span>Archived</span>}</td>
               </tr>
             ))}
           </tbody>
