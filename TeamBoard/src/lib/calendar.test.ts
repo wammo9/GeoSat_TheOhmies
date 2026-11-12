@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CalEvent, Task } from '../types';
-import { addMonths, bar, countdown, linkedStats, monthGrid, occurrences, occurrencesOnDay, recurLabel, taskSpan, upcomingMajor, weekStart } from './calendar';
+import { KIND_ORDER, KINDS, compareOccurrences, kindInfo, kindRank, addMonths, bar, countdown, linkedStats, monthGrid, occurrences, occurrencesOnDay, recurLabel, taskSpan, upcomingMajor, weekStart } from './calendar';
 
 const ev = (o: Partial<CalEvent>): CalEvent => ({
   id: 'e', workspace_id: 'w', title: 'E', kind: 'other', start_date: '2026-11-12', end_date: null, description: null,
@@ -113,5 +113,44 @@ describe('recurring events', () => {
   it('describes the rule', () => {
     expect(recurLabel(ev({ start_date: '2026-11-05', recur: 'weekly' }))).toBe('Repeats every Thursday');
     expect(recurLabel(ev({ recur: 'none' }))).toBe('');
+  });
+});
+
+describe('event types', () => {
+  it('has a distinct Plan type, and unknown types fall back to Other', () => {
+    expect(KINDS.map((k) => k.id)).toEqual(['meeting', 'milestone', 'deadline', 'review', 'plan', 'other']);
+    expect(kindInfo('plan').label).toBe('Plan');
+    expect(new Set(KINDS.map((k) => k.icon)).size).toBe(KINDS.length); // every type has its own icon
+    expect(kindInfo('mystery' as any).label).toBe('Other');
+  });
+});
+
+describe('order of events inside a day box', () => {
+  const day = '2026-11-06';
+  const e = (title: string, kind: CalEvent['kind'], o: Partial<CalEvent> = {}) =>
+    ev({ id: title, title, kind, start_date: '2026-11-06', ...o });
+  const order = (events: CalEvent[]) => occurrencesOnDay(events, day).sort(compareOccurrences).map((o) => o.event.title);
+
+  it('puts the Rev 3-style phase first, then milestones, reviews, meetings, deadlines and finally Plan items', () => {
+    const events = [
+      e('plan: dry run', 'plan'), e('deadline B', 'deadline'), e('meeting', 'meeting'), e('review', 'review'),
+      e('milestone', 'milestone'), e('Rev 3 sprint', 'other', { start_date: '2026-10-26', end_date: '2026-11-15' }),
+    ];
+    expect(order(events)).toEqual(['Rev 3 sprint', 'milestone', 'review', 'meeting', 'deadline B', 'plan: dry run']);
+    expect(KIND_ORDER).toEqual(['other', 'milestone', 'review', 'meeting', 'deadline', 'plan']);
+  });
+  it('lists big events first within a type, then earliest start, then A-Z', () => {
+    const events = [
+      e('Zeta deadline', 'deadline'), e('Alpha deadline', 'deadline'), e('Big deadline', 'deadline', { is_major: true }),
+      e('Earlier band', 'other', { start_date: '2026-10-01', end_date: '2026-11-30' }), e('Later band', 'other', { start_date: '2026-11-02', end_date: '2026-11-30' }),
+    ];
+    expect(order(events)).toEqual(['Earlier band', 'Later band', 'Big deadline', 'Alpha deadline', 'Zeta deadline']);
+  });
+  it('does not depend on the order events arrive in', () => {
+    const a = [e('d', 'deadline'), e('p', 'plan'), e('o', 'other')];
+    expect(order(a)).toEqual(order([...a].reverse()));
+  });
+  it('treats an unknown type like Other, so it can never crash or vanish', () => {
+    expect(kindRank('mystery' as any)).toBe(kindRank('other'));
   });
 });

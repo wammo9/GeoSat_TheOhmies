@@ -62,7 +62,7 @@ export type TaskDraft = Pick<
   | 'dependencies'
 >;
 
-export type EventKind = 'meeting' | 'milestone' | 'deadline' | 'review' | 'other';
+export type EventKind = 'meeting' | 'milestone' | 'deadline' | 'review' | 'plan' | 'other';
 
 export type Recur = 'none' | 'daily' | 'weekly' | 'biweekly' | 'monthly';
 
@@ -150,6 +150,36 @@ export interface Order {
 export type OrderDraft = Pick<
   Order,
   'item' | 'description' | 'quantity' | 'unit_price' | 'fidelity' | 'supplier' | 'date_needed' | 'date_ordered' | 'wufoo_no' | 'date_received' | 'notes' | 'product_link'
+>;
+
+export type RequestStatus = 'pending' | 'approved' | 'declined' | 'added';
+
+export interface OrderRequest {
+  id: string;
+  workspace_id: string;
+  item: string;
+  reason: string;
+  quantity: number;
+  est_unit_price: number | null;
+  supplier: string | null;
+  product_link: string | null;
+  needed_by: string | null;
+  notes: string | null;
+  status: RequestStatus;
+  decision_note: string | null;
+  decided_by: string | null;
+  decided_at: string | null;
+  order_id: string | null;
+  requested_by: string | null;
+  version: number;
+  updated_by: string | null;
+  updated_at: string;
+  created_at: string;
+}
+
+export type RequestDraft = Pick<
+  OrderRequest,
+  'item' | 'reason' | 'quantity' | 'est_unit_price' | 'supplier' | 'product_link' | 'needed_by' | 'notes'
 >;
 
 export interface Member {

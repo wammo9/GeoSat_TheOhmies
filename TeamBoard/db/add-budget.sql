@@ -67,7 +67,7 @@ begin
   insert into activity(workspace_id, entity, actor_id, action, detail)
   values (ws,
           case tg_table_name when 'people' then 'person' when 'invites' then 'invite'
-                             when 'members' then 'member' when 'events' then 'event' when 'orders' then 'order' else 'summary' end,
+                             when 'members' then 'member' when 'events' then 'event' when 'orders' then 'order' when 'order_requests' then 'request' else 'summary' end,
           auth.uid(), lower(tg_op), r);
   return null;
 end $$;

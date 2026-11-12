@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Order } from '../types';
+import type { Order, OrderDraft, OrderRequest } from '../types';
 import { formatMoney, orderTotal, validateOrder, type OrderErrors } from '../lib/budget';
 import { formatDate, formatStamp } from '../lib/dates';
 import { parseLink } from '../lib/links';
@@ -19,11 +19,18 @@ const toDraft = (o: Order): Draft => ({
 });
 const EMPTY: Draft = { item: '', description: '', quantity: '1', unit_price: '', fidelity: '', supplier: '', date_needed: '', date_ordered: '', wufoo_no: '', date_received: '', notes: '', product_link: '' };
 
-export function OrderDialog({ orderId, onClose }: { orderId?: string; onClose: () => void }) {
+const fromPrefill = (p: Partial<OrderDraft>): Draft => ({
+  ...EMPTY, item: p.item ?? '', description: p.description ?? '', quantity: String(p.quantity ?? 1),
+  unit_price: p.unit_price ? String(p.unit_price) : '', supplier: p.supplier ?? '', date_needed: p.date_needed ?? '',
+  notes: p.notes ?? '', product_link: p.product_link ?? '',
+});
+
+/** `prefill` + `fromRequest`: an approved request being turned into a budget order. */
+export function OrderDialog({ orderId, onClose, prefill, fromRequest }: { orderId?: string; onClose: () => void; prefill?: Partial<OrderDraft>; fromRequest?: OrderRequest }) {
   const { board } = useUI();
   const existing = orderId ? board.orders.find((o) => o.id === orderId) : undefined;
   const [base, setBase] = useState<Order | undefined>(existing);
-  const [d, setD] = useState<Draft>(existing ? toDraft(existing) : EMPTY);
+  const [d, setD] = useState<Draft>(existing ? toDraft(existing) : prefill ? fromPrefill(prefill) : EMPTY);
   const [errors, setErrors] = useState<OrderErrors>({});
   const [fail, setFail] = useState('');
   const [conflict, setConflict] = useState<Order | null>(null);
@@ -57,7 +64,10 @@ export function OrderDialog({ orderId, onClose }: { orderId?: string; onClose: (
     try {
       if (!base) {
         const created = await board.createOrder(x);
-        if (created) onClose();
+        if (created) {
+          if (fromRequest) await board.markRequestAdded(fromRequest.id, created.id); // the request now points at this order
+          onClose();
+        }
         return;
       }
       const r = await board.saveOrder(base.id, version ?? base.version, x);
@@ -73,7 +83,10 @@ export function OrderDialog({ orderId, onClose }: { orderId?: string; onClose: (
   const err = (k: keyof OrderErrors) => errors[k] && <span className="field-err" role="alert">{errors[k]}</span>;
 
   return (
-    <Modal title={base ? 'Edit order' : 'New order'} onClose={onClose} wide>
+    <Modal title={base ? 'Edit order' : fromRequest ? 'Turn request into an order' : 'New order'} onClose={onClose} wide>
+      {fromRequest && (
+        <p className="from-request">From <strong>{board.actorName(fromRequest.requested_by)}</strong>’s request: {fromRequest.reason}<br /><span className="muted small-text">Check the details. Add the date ordered once it’s actually placed; saving marks the request as added to the budget.</span></p>
+      )}
       {base && <p className="muted small-text">Last changed by {board.actorName(base.updated_by)} · {formatStamp(base.updated_at)}</p>}
       <form className="fields" onSubmit={(e) => { e.preventDefault(); save(); }} noValidate>
         <div className="grid2">

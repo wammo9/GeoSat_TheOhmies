@@ -64,7 +64,7 @@ create table events (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references workspaces on delete cascade,
   title text not null check (length(trim(title)) > 0),
-  kind text not null default 'other' check (kind in ('meeting','milestone','deadline','review','other')),
+  kind text not null default 'other' check (kind in ('meeting','milestone','deadline','review','plan','other')),
   start_date date not null,                        -- calendar dates in America/Denver
   end_date date,                                   -- null = a single-day event
   description text,
@@ -249,7 +249,7 @@ begin
   insert into activity(workspace_id, entity, actor_id, action, detail)
   values (ws,
           case tg_table_name when 'people' then 'person' when 'invites' then 'invite'
-                             when 'members' then 'member' when 'events' then 'event' when 'orders' then 'order' else 'summary' end,
+                             when 'members' then 'member' when 'events' then 'event' when 'orders' then 'order' when 'order_requests' then 'request' else 'summary' end,
           auth.uid(), lower(tg_op), r);
   return null;
 end $$;
@@ -339,6 +339,69 @@ end $$;
 create trigger orders_guard_t before insert or update on orders
   for each row execute function orders_guard();
 create trigger orders_log_t after insert or update or delete on orders
+  for each row execute function generic_log();
+
+-- Purchase requests: anyone on the team asks for something to be ordered; the team approves or declines,
+-- and an approved request is turned into a normal budget order.
+create table order_requests (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references workspaces on delete cascade,
+  item text not null check (length(trim(item)) > 0),
+  reason text not null check (length(trim(reason)) > 0),       -- why we need it / what it's for
+  quantity int not null default 1 check (quantity >= 1),
+  est_unit_price numeric(10, 2) check (est_unit_price is null or est_unit_price >= 0),
+  supplier text,
+  product_link text check (product_link is null or product_link ~* '^https?://\S+$'),
+  needed_by date,
+  notes text,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'declined', 'added')),
+  decision_note text,
+  decided_by uuid references auth.users on delete set null,
+  decided_at timestamptz,
+  order_id uuid references orders on delete set null,          -- the budget order this became
+  requested_by uuid references auth.users on delete set null default auth.uid(),
+  version int not null default 1,
+  updated_by uuid references auth.users on delete set null,
+  updated_at timestamptz not null default now(),
+  created_at timestamptz not null default now()
+);
+create index order_requests_ws_idx on order_requests (workspace_id, status, created_at desc);
+
+-- The server, not the browser, decides who requested and who decided (so neither can be faked).
+create or replace function order_requests_guard() returns trigger
+language plpgsql set search_path = public as $$
+begin
+  if tg_op = 'INSERT' then
+    new.version := 1;
+    new.status := 'pending';
+    new.requested_by := auth.uid();
+    new.decided_by := null; new.decided_at := null; new.decision_note := null; new.order_id := null;
+  else
+    if new.workspace_id <> old.workspace_id then
+      raise exception 'workspace_id is immutable';
+    end if;
+    if new.version = old.version and old.order_id is not null and new.order_id is null
+       and (to_jsonb(new) - 'order_id') = (to_jsonb(old) - 'order_id') then
+      new.version := old.version + 1;   -- automatic unlink when the budget order is deleted
+    elsif new.version <> old.version + 1 then
+      raise exception 'stale_version' using errcode = '40001';
+    end if;
+    new.requested_by := old.requested_by;
+    if new.status is distinct from old.status then
+      if new.status = 'pending' then
+        new.decided_by := null; new.decided_at := null; new.decision_note := null; new.order_id := null;
+      else
+        new.decided_by := auth.uid(); new.decided_at := now();
+      end if;
+    end if;
+  end if;
+  new.updated_by := auth.uid();
+  new.updated_at := now();
+  return new;
+end $$;
+create trigger order_requests_guard_t before insert or update on order_requests
+  for each row execute function order_requests_guard();
+create trigger order_requests_log_t after insert or update or delete on order_requests
   for each row execute function generic_log();
 
 -- ---------------------------------------------------------------- RPCs
@@ -458,6 +521,7 @@ alter table activity enable row level security;
 alter table workspace_summary enable row level security;
 alter table events enable row level security;
 alter table orders enable row level security;
+alter table order_requests enable row level security;
 alter table slide_archive enable row level security;
 
 create policy ws_read      on workspaces for select using (is_member(id));
@@ -480,6 +544,10 @@ create policy summary_read on workspace_summary for select using (is_member(work
 create policy archive_read on slide_archive for select using (is_member(workspace_id));
 create policy archive_add  on slide_archive for insert with check (is_member(workspace_id));
 create policy archive_del  on slide_archive for delete using (is_member(workspace_id));
+create policy requests_read on order_requests for select using (is_member(workspace_id));
+create policy requests_add  on order_requests for insert with check (is_member(workspace_id));
+create policy requests_edit on order_requests for update using (is_member(workspace_id)) with check (is_member(workspace_id));
+create policy requests_del  on order_requests for delete using (is_member(workspace_id) and (requested_by = auth.uid() or is_admin(workspace_id)));
 create policy orders_all   on orders for all using (is_member(workspace_id)) with check (is_member(workspace_id));
 create policy events_all   on events for all using (is_member(workspace_id)) with check (is_member(workspace_id));
 create policy summary_edit on workspace_summary for update using (is_member(workspace_id)) with check (is_member(workspace_id));
@@ -511,4 +579,4 @@ create policy "slide decks: members delete" on storage.objects for delete to aut
 
 -- ---------------------------------------------------------------- realtime
 
-alter publication supabase_realtime add table tasks, comments, activity, workspace_summary, people, members, invites, events, slide_archive, orders;
+alter publication supabase_realtime add table tasks, comments, activity, workspace_summary, people, members, invites, events, slide_archive, orders, order_requests;

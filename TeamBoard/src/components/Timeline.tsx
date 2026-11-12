@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { CalEvent, Task } from '../types';
-import { bar, eachDay, kindInfo, occurrences, taskSpan, weekStart } from '../lib/calendar';
+import { bar, eachDay, kindInfo, kindRank, occurrences, taskSpan, weekStart } from '../lib/calendar';
 import { addDays, formatDate, weekday } from '../lib/dates';
 import { isOverdue } from '../lib/rules';
 import { OwnerChip } from './Chips';
@@ -10,7 +10,7 @@ type Group = 'none' | 'owner' | 'workstream';
 const LABEL_W = 230;
 const DAY_PX: Record<number, number> = { 4: 34, 8: 20, 12: 13 };
 
-export function Timeline({ tasks, showCompleted, onOpenEvent }: { tasks: Task[]; showCompleted: boolean; onOpenEvent: (id: string, occurrence: string) => void }) {
+export function Timeline({ tasks, events, showCompleted, onOpenEvent }: { tasks: Task[]; events: CalEvent[]; showCompleted: boolean; onOpenEvent: (id: string, occurrence: string) => void }) {
   const { board, openTask } = useUI();
   const [weeks, setWeeks] = useState(8);
   const [offset, setOffset] = useState(0); // weeks from the current week
@@ -29,10 +29,11 @@ export function Timeline({ tasks, showCompleted, onOpenEvent }: { tasks: Task[];
     .filter((x) => x.b)
     .sort((a, b) => a.span.start.localeCompare(b.span.start) || a.span.end.localeCompare(b.span.end));
   const outside = visibleTasks.length - placed.length;
-  const eventRows = board.events
+  const eventRows = events
     .map((e) => ({ e, occs: occurrences(e, winStart, winEnd) }))
     .filter((r) => r.occs.length > 0)
-    .sort((a, b) => a.occs[0].start.localeCompare(b.occs[0].start));
+    // same order as the calendar boxes: phases first, then milestones, deadlines, plans; earliest first within a type
+    .sort((a, b) => kindRank(a.e.kind) - kindRank(b.e.kind) || a.occs[0].start.localeCompare(b.occs[0].start) || a.e.title.localeCompare(b.e.title));
 
   const groups = useMemo(() => {
     if (group === 'none') return [{ key: 'all', label: '', rows: placed }];

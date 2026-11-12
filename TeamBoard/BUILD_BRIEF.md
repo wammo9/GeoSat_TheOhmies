@@ -36,6 +36,7 @@ See `config/workstreams.json`.
 
 ## Budget tab and Drive box (added later)
 - **Budget tab:** the team's parts/supplies orders (item, what it's for, quantity, price each, total, fidelity, supplier, date needed/ordered/received, WUFOO #, notes, product link). Anyone can add, edit and delete orders; status is derived from the dates (not ordered / on its way / received) with a "Late" flag for unreceived orders past their needed date; totals by stage; search and filters; **Import from spreadsheet** (paste copied rows, duplicates skipped) and **Export CSV**. Edits sync live, are attributed, and warn on simultaneous changes.
+- **Order requests** (Budget tab → Requests): anyone can request an item (what, why, quantity, estimated price, where to buy, needed-by date, link). The team approves or declines (with an optional reason); the server records who requested and who decided. An approved request becomes a budget order in one click (**Turn into order** pre-fills the order form), after which it shows as *Added to the budget*. A badge on the Budget tab counts requests waiting for approval. Requesters can edit or withdraw their own requests; admins can remove any.
 - **Team Google Drive box** at the top of the Board, above the slide decks (link in `config/links.json`, written without Google's per-account `/u/1/` part so it works for everyone).
 
 ## Customer slides (added later)
@@ -47,7 +48,7 @@ Anyone can edit; only http(s) links are accepted; changes sync live and warn on 
 ## Calendar (added after the first release)
 - A **Calendar** tab, in addition to (not replacing) the Tuesday/Thursday views.
 - **Big upcoming events** are highlighted at the top: any teammate can add an event and tick "Big event"; each shows a countdown and how many linked tasks are done/overdue/blocked.
-- Anyone can add, edit and delete events (title, type, start/optional end date, notes). Tasks can be linked to an event from the event or from the task.
+- Anyone can add, edit and delete events (title, type — Meeting, Milestone, Deadline, Review, Plan or Other — start/optional end date, notes). A color key above the calendar doubles as a filter that shows or hides each type in both views. Tasks can be linked to an event from the event or from the task.
 - Events can **repeat** (daily, weekly, every 2 weeks, monthly) with an optional end date, and a single repeat can be skipped without deleting the series. Repeats are generated on screen, not stored as separate rows.
 - **Month view** shows events and task due dates (Tue/Thu meetings marked). **Timeline (Gantt) view** shows tasks as bars from an optional start date to the due date, with 4/8/12-week windows and grouping, so multi-week work can be budgeted.
 

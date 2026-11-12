@@ -50,6 +50,12 @@ Open the site in two browsers signed in as two different teammates, then:
 
 If you ran the earlier `db/schema.sql` on a Supabase project, paste **`db/add-calendar.sql`** into the SQL Editor and run it **once** (it only adds new things; existing data is untouched). New projects just run `db/schema.sql`, which already includes it. Then upload the new build.
 
+### Fall 2026 semester timeline (optional, one-time)
+Paste **`db/fall-2026-timeline.sql`** into the SQL Editor and run it **once** to fill the Calendar with the Canvas deadlines, the manual's sprint phases, and our suggested checkpoints (those use their own **Plan** event type, shown with a dashed amber edge, and are labelled SUGGESTED). The file also adds the Plan type itself (`db/add-plan-type.sql` does just that, if you want only the type). It needs the Calendar and Recurring-events upgrades first, adds nothing twice if re-run, and every event can be edited or deleted in the app afterwards.
+
+### Order requests release
+Paste **`db/add-requests.sql`** into the SQL Editor and run it **once** (after `db/add-budget.sql`; safe to run twice; adds only the new requests table), then upload the new build. Fresh projects: already in `db/schema.sql`.
+
 ### Budget release
 Paste **`db/add-budget.sql`** into the SQL Editor and run it **once** (safe to run twice; adds only the new orders table), then upload the new build. Then on the **Budget** tab use **Import from spreadsheet** to paste your existing rows. Fresh projects: already in `db/schema.sql`.
 

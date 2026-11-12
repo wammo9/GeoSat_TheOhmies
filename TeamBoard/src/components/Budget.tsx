@@ -1,10 +1,13 @@
 import { useMemo, useState } from 'react';
-import type { Order } from '../types';
+import type { Order, OrderRequest } from '../types';
 import { STATUS_LABEL, formatMoney, isLate, orderStatus, orderTotal, ordersToCsv, summarize, type OrderStatus } from '../lib/budget';
 import { formatDate } from '../lib/dates';
 import { hostOf } from '../lib/links';
 import { OrderDialog } from './OrderDialog';
 import { ImportOrders } from './ImportOrders';
+import { RequestDialog } from './RequestDialog';
+import { RequestsPanel } from './RequestsPanel';
+import { requestToOrderDraft } from '../lib/requests';
 import { useUI } from '../ctx';
 
 type StatusFilter = 'all' | OrderStatus | 'late';
@@ -16,6 +19,10 @@ export function Budget() {
   const { board } = useUI();
   const [dialog, setDialog] = useState<{ id?: string } | null>(null);
   const [importing, setImporting] = useState(false);
+  const [tab, setTab] = useState<'orders' | 'requests'>('orders');
+  const [reqDialog, setReqDialog] = useState<{ id?: string } | null>(null);
+  const [fromRequest, setFromRequest] = useState<OrderRequest | null>(null);
+  const waiting = board.orderRequests.filter((r) => r.status === 'pending').length;
   const [q, setQ] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
   const [supplier, setSupplier] = useState('');
@@ -56,6 +63,7 @@ export function Budget() {
         <div className="row between">
           <h2>Budget</h2>
           <div className="row">
+            <button onClick={() => setReqDialog({})}>Request an item</button>
             <button onClick={() => setImporting(true)}>Import from spreadsheet</button>
             <button onClick={exportCsv} disabled={board.orders.length === 0}>Export CSV</button>
             <button className="primary" onClick={() => setDialog({})}>+ New order</button>
@@ -70,7 +78,18 @@ export function Budget() {
         </ul>
       </section>
 
-      <section className="panel">
+      <div className="seg" role="tablist" aria-label="Budget sections">
+        <button role="tab" aria-selected={tab === 'orders'} className={tab === 'orders' ? 'on' : ''} onClick={() => setTab('orders')}>Orders ({board.orders.length})</button>
+        <button role="tab" aria-selected={tab === 'requests'} className={tab === 'requests' ? 'on' : ''} onClick={() => setTab('requests')}>
+          Requests{waiting > 0 && <span className="seg-badge" aria-label={`${waiting} waiting for approval`}>{waiting}</span>}
+        </button>
+      </div>
+
+      {tab === 'requests' && (
+        <RequestsPanel onOpen={(id) => setReqDialog({ id })} onNew={() => setReqDialog({})} onTurnIntoOrder={(r) => { setTab('orders'); setFromRequest(r); }} />
+      )}
+
+      {tab === 'orders' && <section className="panel">
         <form className="filters budget-filters" role="search" aria-label="Filter orders" onSubmit={(e) => e.preventDefault()}>
           <label className="grow">Search
             <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Item, supplier, WUFOO #, notes…" />
@@ -147,8 +166,10 @@ export function Budget() {
             {list.length === 0 && <p className="col-empty">No orders match.</p>}
           </div>
         )}
-      </section>
+      </section>}
       {dialog && <OrderDialog key={dialog.id ?? 'new'} orderId={dialog.id} onClose={() => setDialog(null)} />}
+      {fromRequest && <OrderDialog key={`rq-${fromRequest.id}`} prefill={requestToOrderDraft(fromRequest)} fromRequest={fromRequest} onClose={() => setFromRequest(null)} />}
+      {reqDialog && <RequestDialog key={reqDialog.id ?? 'new-request'} requestId={reqDialog.id} onClose={() => setReqDialog(null)} onTurnIntoOrder={(r) => { setReqDialog(null); setTab('orders'); setFromRequest(r); }} />}
       {importing && <ImportOrders onClose={() => setImporting(false)} />}
     </div>
   );

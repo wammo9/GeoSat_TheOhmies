@@ -7,9 +7,10 @@ export const KINDS: { id: EventKind; label: string; icon: string }[] = [
   { id: 'milestone', label: 'Milestone', icon: '🏁' },
   { id: 'deadline', label: 'Deadline', icon: '⚑' },
   { id: 'review', label: 'Review', icon: '🔎' },
+  { id: 'plan', label: 'Plan', icon: '🧭' },
   { id: 'other', label: 'Other', icon: '📌' },
 ];
-export const kindInfo = (k: EventKind) => KINDS.find((x) => x.id === k) ?? KINDS[4];
+export const kindInfo = (k: EventKind) => KINDS.find((x) => x.id === k) ?? KINDS.find((x) => x.id === 'other')!;
 
 /** Sunday on or before the date. */
 export const weekStart = (iso: string) => addDays(iso, -weekday(iso));
@@ -39,6 +40,21 @@ export function monthGrid(iso: string): string[][] {
   for (let i = 0; i < days.length; i += 7) weeks.push(days.slice(i, i + 7));
   return weeks;
 }
+
+/**
+ * The order events are shown in wherever they're listed (each day box, the Gantt events lane):
+ * phases and overall context first (e.g. the Rev 3 sprint, type "Other"), then milestones, reviews, meetings,
+ * then deadlines, and our own Plan items last.
+ */
+export const KIND_ORDER: EventKind[] = ['other', 'milestone', 'review', 'meeting', 'deadline', 'plan'];
+export const kindRank = (k: EventKind) => { const i = KIND_ORDER.indexOf(k); return i < 0 ? 0 : i; };
+
+/** Within a type: big events first, then whatever began earliest, then A-Z. */
+export const compareOccurrences = (a: Occurrence, b: Occurrence) =>
+  kindRank(a.event.kind) - kindRank(b.event.kind) ||
+  Number(b.event.is_major) - Number(a.event.is_major) ||
+  a.start.localeCompare(b.start) ||
+  a.event.title.localeCompare(b.event.title);
 
 export const eventEnd = (e: Pick<CalEvent, 'start_date' | 'end_date'>) => e.end_date ?? e.start_date;
 

@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import type { Task } from '../types';
-import { countdown, kindInfo, linkedStats, recurLabel, upcomingMajor } from '../lib/calendar';
+import type { EventKind, Task } from '../types';
+import { KINDS, countdown, kindInfo, linkedStats, recurLabel, upcomingMajor } from '../lib/calendar';
 import { formatDate } from '../lib/dates';
 import { MonthView } from './MonthView';
 import { Timeline } from './Timeline';
@@ -15,6 +15,9 @@ export function CalendarView({ tasks }: { tasks: Task[] }) {
   const [dialog, setDialog] = useState<{ id?: string; date?: string; occurrence?: string } | null>(null);
   const [showTasks, setShowTasks] = useState(true);
   const [showCompleted, setShowCompleted] = useState(false);
+  const [hidden, setHidden] = useState<Set<EventKind>>(new Set());
+  const events = board.events.filter((e) => !hidden.has(e.kind));
+  const toggleKind = (k: EventKind) => setHidden((prev) => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n; });
   const big = upcomingMajor(board.events, board.today, 5);
   const monthTasks = showCompleted ? tasks : tasks.filter((t) => t.col !== 'completed');
 
@@ -62,9 +65,21 @@ export function CalendarView({ tasks }: { tasks: Task[] }) {
             <label className="check"><input type="checkbox" checked={showCompleted} onChange={(e) => setShowCompleted(e.target.checked)} /> Show completed tasks</label>
           </div>
         </div>
+        <div className="kind-key" role="group" aria-label="Event types (click to show or hide)">
+          <span className="muted small-text">Event types:</span>
+          {KINDS.map((k) => {
+            const n = board.events.filter((e) => e.kind === k.id).length;
+            const on = !hidden.has(k.id);
+            return (
+              <button key={k.id} className={`kind-chip k-${k.id}${on ? '' : ' off'}`} aria-pressed={on} onClick={() => toggleKind(k.id)} title={on ? `Hide ${k.label} events` : `Show ${k.label} events`}>
+                <span className="swatch" aria-hidden="true" />{k.icon} {k.label} <span className="kc-count">{n}</span>
+              </button>
+            );
+          })}
+        </div>
         {sub === 'month'
-          ? <MonthView tasks={monthTasks} showTasks={showTasks} onOpenEvent={(id, occurrence) => setDialog({ id, occurrence })} onAddEvent={(date) => setDialog({ date })} />
-          : <Timeline tasks={tasks} showCompleted={showCompleted} onOpenEvent={(id, occurrence) => setDialog({ id, occurrence })} />}
+          ? <MonthView tasks={monthTasks} events={events} showTasks={showTasks} onOpenEvent={(id, occurrence) => setDialog({ id, occurrence })} onAddEvent={(date) => setDialog({ date })} />
+          : <Timeline tasks={tasks} events={events} showCompleted={showCompleted} onOpenEvent={(id, occurrence) => setDialog({ id, occurrence })} />}
       </section>
       {dialog && <EventDialog key={dialog.id ?? dialog.date ?? 'new'} eventId={dialog.id} date={dialog.date} occurrence={dialog.occurrence} onClose={() => setDialog(null)} />}
     </div>

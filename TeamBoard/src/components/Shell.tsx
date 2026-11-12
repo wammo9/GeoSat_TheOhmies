@@ -48,6 +48,7 @@ const TABS: [View, string][] = [
 export function Header({ view, setView, board, email, onSignOut, onNew }: {
   view: View; setView: (v: View) => void; board: Board; email: string; onSignOut: () => void; onNew: () => void;
 }) {
+  const waitingRequests = board.orderRequests.filter((r) => r.status === 'pending').length;
   const status =
     board.live === 'live' ? <span className="dot ok">Live</span>
     : board.live === 'connecting' ? <span className="dot warn">Connecting…</span>
@@ -76,6 +77,7 @@ export function Header({ view, setView, board, email, onSignOut, onNew }: {
         {TABS.map(([id, label]) => (
           <button key={id} className={view === id ? 'tab on' : 'tab'} aria-current={view === id ? 'page' : undefined} onClick={() => setView(id)}>
             {label}
+            {id === 'budget' && waitingRequests > 0 && <span className="tab-badge" aria-label={`, ${waitingRequests} request${waitingRequests === 1 ? '' : 's'} waiting for approval`}>{waitingRequests}</span>}
           </button>
         ))}
       </nav>

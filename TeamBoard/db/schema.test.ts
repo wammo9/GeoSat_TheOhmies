@@ -3,6 +3,8 @@
 import { PGlite } from '@electric-sql/pglite';
 import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
+import { compareOccurrences, occurrences, occurrencesOnDay, upcomingMajor } from '../src/lib/calendar';
+import { weekday } from '../src/lib/dates';
 
 const A = '00000000-0000-0000-0000-00000000000a'; // admin
 const B = '00000000-0000-0000-0000-00000000000b'; // invited member
@@ -262,5 +264,173 @@ describe('budget orders', () => {
     expect(rows[0]).toMatchObject({ action: 'insert', actor_id: B });
     expect(rows[0].detail.item).toBe('INA219AIDR');
     expect(rows.some((r) => r.action === 'update' && r.actor_id === A)).toBe(true);
+  });
+});
+
+describe('fall 2026 timeline script', () => {
+  const sql = readFileSync(new URL('./fall-2026-timeline.sql', import.meta.url), 'utf8');
+  // The Supabase SQL Editor runs with nobody "signed in" (auth.uid() is null); mimic that for the script.
+  const asSqlEditor = () => db.exec(`select set_config('request.jwt.claim.sub','',false)`);
+  beforeAll(asSqlEditor);
+  const load = async () =>
+    (await db.query<any>(`select title, kind, start_date::text, end_date::text, is_major, recur, recur_until::text, recur_skip::text[] from events where title not like 'Design review%' order by start_date, title`)).rows;
+
+  it('loads the timeline once, and running it again adds nothing', async () => {
+    const before = (await db.query<any>(`select count(*)::int n from events`)).rows[0].n;
+    await db.exec(sql);
+    const once = (await db.query<any>(`select count(*)::int n from events`)).rows[0].n;
+    expect(once - before).toBe(23);
+    await db.exec(sql);
+    expect((await db.query<any>(`select count(*)::int n from events`)).rows[0].n).toBe(once);
+  });
+
+  it('puts the Canvas deadlines on the right days', async () => {
+    const rows = await load();
+    const on = (title: string) => rows.find((r) => r.title === title)!;
+    expect(on('PoC Demo due').start_date).toBe('2026-11-19');
+    expect(on('Functional PCB due').start_date).toBe('2026-11-20');
+    expect(on('TA Check-In 4 due').start_date).toBe('2026-11-02');
+    expect(on('TA Check-In 5 due').start_date).toBe('2026-11-30');
+    expect(on('Badge quizzes due (10 badges)').start_date).toBe('2026-11-06');
+    expect(on('Mini Expo presentation').start_date).toBe('2026-12-03');
+    expect(on('Phase 1 Final Report due').start_date).toBe('2026-12-07');
+    expect(on('Portfolio and Career Path due').start_date).toBe('2026-11-30');
+    expect(on('Personal Reflection due').start_date).toBe('2026-12-04');
+    expect(on('Project Metrics due').start_date).toBe('2026-12-04');
+    expect(on('Peer Evaluation 2 (opens Nov 8, due Nov 13)')).toMatchObject({ start_date: '2026-11-08', end_date: '2026-11-13' });
+    expect(on('Mini Expo poster due (Morning and Afternoon sections)').start_date).toBe('2026-11-13');
+    expect(on('Week 10: PDR week')).toMatchObject({ start_date: '2026-10-19', end_date: '2026-10-23', is_major: false });
+    expect(on('Rev 3 sprint (Weeks 11-13): final PoC iteration')).toMatchObject({ start_date: '2026-10-26', end_date: '2026-11-15' });
+    expect(on('Fall break (no class, nothing due)')).toMatchObject({ start_date: '2026-11-23', end_date: '2026-11-29' });
+  });
+
+  it('expands the weekly items into exactly the Canvas dates', async () => {
+    const rows = await load();
+    const ev = (t: string) => ({ ...rows.find((r) => r.title === t)!, id: 'x', workspace_id: 'w', end_date: null, description: null, version: 1, updated_by: null, updated_at: '', recur_skip: [] }) as any;
+    const days = (t: string) => occurrences(ev(t), '2026-10-01', '2026-12-31').map((o) => o.start);
+    expect(days('Sponsor meeting slides due (Fri 11:59 PM)')).toEqual(['2026-10-30', '2026-11-06', '2026-11-13', '2026-11-20']);
+    expect(days('Weekly sponsor meeting (Wednesday)')).toEqual(['2026-10-28', '2026-11-04', '2026-11-11', '2026-11-18']);
+    for (const d of days('Sponsor meeting slides due (Fri 11:59 PM)')) expect(weekday(d)).toBe(5); // Fridays
+    for (const d of days('Weekly sponsor meeting (Wednesday)')) expect(weekday(d)).toBe(3); // Wednesdays
+  });
+
+  it('highlights the four upcoming big events in date order (PDR is already over)', async () => {
+    const rows = (await load()).map((r) => ({ ...r, id: r.title, workspace_id: 'w', description: null, version: 1, updated_by: null, updated_at: '', recur_skip: r.recur_skip ?? [] })) as any[];
+    expect(upcomingMajor(rows, '2026-10-25', 10).map((o) => o.event.title)).toEqual([
+      'PoC Demo due', 'Functional PCB due', 'Mini Expo presentation', 'Phase 1 Final Report due',
+    ]);
+  });
+
+  it('gives our own suggestions their own "Plan" type, separate from deadlines, with plain titles', async () => {
+    const all = await load();
+    const plan = all.filter((r) => r.kind === 'plan');
+    expect(plan.map((r) => r.title).sort()).toEqual([
+      'Draft the Phase 1 final report', 'LAST realistic PCB run for the Nov 20 deadline', 'Mini Expo rehearsal (poster, pitch, demo)',
+      'Pick the 2 risks/tests for the PoC demo', 'PoC dry run + PCB function check', 'Submit PCB Gerbers (Tuesday run)',
+    ]);
+    expect(all.some((r) => r.title.startsWith('Plan:'))).toBe(false); // the type carries the label now
+    expect((await db.query<any>(`select count(*)::int n from events where kind = 'plan' and description not like 'SUGGESTED%'`)).rows[0].n).toBe(0);
+    expect(all.find((r) => r.title === 'LAST realistic PCB run for the Nov 20 deadline')!.kind).toBe('plan'); // not a deadline any more
+  });
+
+  it('shows each real day in the order: Rev 3 first, then milestones, deadlines, plans', async () => {
+    const rows = (await load()).map((r) => ({ ...r, id: r.title, workspace_id: 'w', description: null, version: 1, updated_by: null, updated_at: '', recur_skip: r.recur_skip ?? [] })) as any[];
+    const titles = (day: string) => occurrencesOnDay(rows, day).sort(compareOccurrences).map((o) => o.event.title);
+    const rev3 = 'Rev 3 sprint (Weeks 11-13): final PoC iteration';
+    expect(titles('2026-11-06')).toEqual([rev3, 'Badge quizzes due (10 badges)', 'Sponsor meeting slides due (Fri 11:59 PM)', 'Pick the 2 risks/tests for the PoC demo']);
+    expect(titles('2026-10-27')).toEqual([rev3, 'Submit PCB Gerbers (Tuesday run)']);
+    expect(titles('2026-10-28')).toEqual([rev3, 'Weekly sponsor meeting (Wednesday)']);
+    expect(titles('2026-11-13')[0]).toBe(rev3);
+    expect(titles('2026-11-20')).toEqual(['Functional PCB due', 'Sponsor meeting slides due (Fri 11:59 PM)']); // big deadline before ordinary one; Rev 3 is over
+    expect(titles('2026-11-19')).toEqual(['PoC Demo due']);
+  });
+
+  it('accepts the Plan type and still rejects unknown types', async () => {
+    expect((await as(A, `insert into events(workspace_id,title,kind,start_date) values ('${ws}','Try plan','plan','2026-11-05') returning kind`))[0].kind).toBe('plan');
+    expect(await fails(A, `insert into events(workspace_id,title,kind,start_date) values ('${ws}','Bad','banana','2026-11-05')`)).toBeTruthy();
+  });
+
+  it('upgrades cleanly from the first version of the file, leaving edited and personal events alone', async () => {
+    // what the first version created for the two events that moved, plus one a teammate edited in the app, plus one of ours
+    await asSqlEditor();
+    await db.exec(`insert into events(workspace_id,title,kind,start_date,end_date,is_major,description) select id,'Week 10: PDR week + start Rev 3','review','2026-10-26','2026-10-30',true,'old' from workspaces`);
+    await db.exec(`insert into events(workspace_id,title,kind,start_date,end_date,description) select id,'Rev 3 sprint (Weeks 11-13): final PoC iteration','other','2026-11-02','2026-11-22','old' from workspaces`);
+    await as(A, `update events set description='We changed this on purpose', version=version+1 where title='TA Check-In 4 due'`);
+    await asSqlEditor();
+    // the earlier version titled our suggestions "Plan: ..." and filed them under Milestone/Deadline
+    await db.exec(`insert into events(workspace_id,title,kind,start_date,description) select id,'Plan: submit PCB Gerbers (Tuesday run)','milestone','2026-10-27','old' from workspaces`);
+    await db.exec(`insert into events(workspace_id,title,start_date) select id,'Our own team dinner','2026-11-05' from workspaces`);
+    await db.exec(sql);
+    const titles = (await db.query<any>(`select title, start_date::text d, description from events`)).rows;
+    expect(titles.some((r) => r.title === 'Week 10: PDR week + start Rev 3')).toBe(false);
+    expect(titles.some((r) => r.title.startsWith('Rev 3 sprint') && r.d === '2026-11-02')).toBe(false);
+    expect(titles.filter((r) => r.title.startsWith('Rev 3 sprint') && r.d === '2026-10-26')).toHaveLength(1);
+    expect(titles.find((r) => r.title === 'TA Check-In 4 due')!.description).toBe('We changed this on purpose'); // human edit survives
+    expect(titles.some((r) => r.title === 'Our own team dinner')).toBe(true);
+    expect(titles.some((r) => r.title === 'Plan: submit PCB Gerbers (Tuesday run)')).toBe(false); // old-titled row replaced...
+    expect(titles.filter((r) => r.title === 'Submit PCB Gerbers (Tuesday run)')).toHaveLength(1); // ...by exactly one new one
+    // and the refreshed wording reached events nobody had touched
+    expect(titles.find((r) => r.title === 'TA Check-In 5 due')!.description).toMatch(/^Week 16/);
+    const total = (await db.query<any>(`select count(*)::int n from events where title not like 'Design review%'`)).rows[0].n;
+    await db.exec(sql);
+    expect((await db.query<any>(`select count(*)::int n from events where title not like 'Design review%'`)).rows[0].n).toBe(total);
+  });
+});
+
+describe('purchase requests', () => {
+  let req = '';
+  it('any member can request; outsiders see and write nothing', async () => {
+    req = (await as(B, `insert into order_requests(workspace_id,item,reason,quantity,est_unit_price,supplier,needed_by) values ('${ws}','Logic analyzer','Debug the SPI bus',1,49.99,'Amazon','2026-11-06') returning id`))[0].id;
+    expect((await as(A, `select count(*)::int n from order_requests`))[0].n).toBe(1);
+    expect((await as(C, `select count(*)::int n from order_requests`))[0].n).toBe(0);
+    expect(await fails(C, `insert into order_requests(workspace_id,item,reason) values ('${ws}','x','y')`)).toBeTruthy();
+  });
+  it('requires an item and a reason, and sane numbers and links', async () => {
+    const ins = (cols: string, vals: string) => `insert into order_requests(workspace_id,${cols}) values ('${ws}',${vals})`;
+    expect(await fails(A, ins('item,reason', `' ','why'`))).toBeTruthy();
+    expect(await fails(A, ins('item,reason', `'x',' '`))).toBeTruthy();
+    expect(await fails(A, ins('item,reason,quantity', `'x','y',0`))).toBeTruthy();
+    expect(await fails(A, ins('item,reason,est_unit_price', `'x','y',-5`))).toBeTruthy();
+    expect(await fails(A, ins('item,reason,product_link', `'x','y','javascript:alert(1)'`))).toBeTruthy();
+    expect(await fails(A, ins('item,reason', `'Resistor kit','Bench stock'`))).toBeNull();
+  });
+  it('the server records who requested and forces new requests to start as pending', async () => {
+    const r = (await as(A, `insert into order_requests(workspace_id,item,reason,status,requested_by,decided_by) values ('${ws}','Sneaky','test','approved','${B}','${B}') returning status, requested_by, decided_by`))[0];
+    expect(r).toEqual({ status: 'pending', requested_by: A, decided_by: null });
+  });
+  it('records who decided and when, and clears it when reopened', async () => {
+    const ok = (await as(A, `update order_requests set status='approved', version=2, decided_by='${B}' where id='${req}' and version=1 returning status, decided_by, decided_at is not null as has_time`))[0];
+    expect(ok).toEqual({ status: 'approved', decided_by: A, has_time: true }); // A, not the B that was sent
+    const declined = (await as(B, `update order_requests set status='declined', decision_note='Too pricey', version=3 where id='${req}' and version=2 returning decided_by, decision_note`))[0];
+    expect(declined).toEqual({ decided_by: B, decision_note: 'Too pricey' });
+    const reopened = (await as(A, `update order_requests set status='pending', version=4 where id='${req}' and version=3 returning decided_by, decision_note`))[0];
+    expect(reopened).toEqual({ decided_by: null, decision_note: null });
+    expect((await as(A, `select requested_by from order_requests where id='${req}'`))[0].requested_by).toBe(B); // never changes
+  });
+  it('rejects stale edits instead of overwriting', async () => {
+    expect((await as(B, `update order_requests set quantity=2, version=5 where id='${req}' and version=4 returning id`)).length).toBe(1);
+    expect((await as(A, `update order_requests set quantity=3, version=5 where id='${req}' and version=4 returning id`)).length).toBe(0);
+    expect((await fails(A, `update order_requests set quantity=3 where id='${req}'`))?.code).toBe('40001');
+  });
+  it('can become a budget order, and keeps the link if the order is later deleted', async () => {
+    const order = (await as(A, `insert into orders(workspace_id,item,quantity,unit_price) values ('${ws}','Logic analyzer',2,49.99) returning id`))[0].id;
+    const r = (await as(A, `update order_requests set status='added', order_id='${order}', version=6 where id='${req}' and version=5 returning status, order_id`))[0];
+    expect(r).toEqual({ status: 'added', order_id: order });
+    await as(A, `delete from orders where id='${order}'`);
+    expect((await as(A, `select status, order_id from order_requests where id='${req}'`))[0]).toEqual({ status: 'added', order_id: null });
+  });
+  it('only the requester (or an admin) can delete a request', async () => {
+    const mine = (await as(B, `insert into order_requests(workspace_id,item,reason) values ('${ws}','Mine','x') returning id`))[0].id;
+    // B is a plain member here; A is the admin (set up in the first test group)
+    expect((await as(C, `delete from order_requests where id='${mine}' returning id`)).length).toBe(0);
+    expect((await as(B, `delete from order_requests where id='${mine}' returning id`)).length).toBe(1);
+    const other = (await as(B, `insert into order_requests(workspace_id,item,reason) values ('${ws}','Other','x') returning id`))[0].id;
+    expect((await as(A, `delete from order_requests where id='${other}' returning id`)).length).toBe(1); // admin may
+  });
+  it('logs requests with who did what', async () => {
+    const rows = await as<any>(A, `select action, actor_id, detail from activity where entity='request' order by id`);
+    expect(rows[0]).toMatchObject({ action: 'insert', actor_id: B });
+    expect(rows[0].detail.item).toBe('Logic analyzer');
+    expect(rows.some((r) => r.action === 'update' && r.detail.status === 'approved' && r.actor_id === A)).toBe(true);
   });
 });

@@ -46,6 +46,12 @@ export function Team() {
       case 'person': return `${a.action === 'insert' ? 'added teammate' : a.action === 'delete' ? 'removed teammate' : 'updated profile of'} ${d.initial ?? ''}`;
       case 'invite': return `${a.action === 'insert' ? 'invited' : 'cancelled invite for'} ${d.email}`;
       case 'member': return a.action === 'joined' ? `${d.email} joined` : `removed ${d.email} from the workspace`;
+      case 'request': {
+        const verb = a.action === 'insert' ? 'requested' : a.action === 'delete' ? 'withdrew the request for'
+          : d.status === 'approved' ? 'approved the request for' : d.status === 'declined' ? 'declined the request for'
+          : d.status === 'added' ? 'added to the budget the request for' : 'updated the request for';
+        return `${verb} “${d.item ?? ''}”`;
+      }
       case 'order': return `${a.action === 'insert' ? 'added order' : a.action === 'delete' ? 'deleted order' : 'updated order'} “${d.item ?? ''}”`;
       case 'event': return `${a.action === 'insert' ? 'added event' : a.action === 'delete' ? 'deleted event' : 'updated event'} “${d.title ?? ''}”`;
       case 'summary': return 'updated the weekly goal / milestone / blockers';

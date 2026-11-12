@@ -1,14 +1,15 @@
 import { useState } from 'react';
-import type { Task } from '../types';
-import { addMonths, kindInfo, monthGrid, monthLabel, occurrencesOnDay } from '../lib/calendar';
+import type { CalEvent, Task } from '../types';
+import { addMonths, compareOccurrences, kindInfo, monthGrid, monthLabel, occurrencesOnDay } from '../lib/calendar';
 import { formatDate, weekday } from '../lib/dates';
 import { isOverdue } from '../lib/rules';
 import { useUI } from '../ctx';
 
+const MAX_SHOWN = 4; // items shown per day before "+N more"
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-export function MonthView({ tasks, showTasks, onOpenEvent, onAddEvent }: {
-  tasks: Task[]; showTasks: boolean; onOpenEvent: (id: string, occurrence: string) => void; onAddEvent: (date: string) => void;
+export function MonthView({ tasks, events, showTasks, onOpenEvent, onAddEvent }: {
+  tasks: Task[]; events: CalEvent[]; showTasks: boolean; onOpenEvent: (id: string, occurrence: string) => void; onAddEvent: (date: string) => void;
 }) {
   const { board, openTask } = useUI();
   const [month, setMonth] = useState(board.today.slice(0, 7) + '-01');
@@ -28,12 +29,13 @@ export function MonthView({ tasks, showTasks, onOpenEvent, onAddEvent }: {
       <div className="month" role="grid" aria-label={monthLabel(month)}>
         {DOW.map((d) => <div key={d} className="dow" role="columnheader">{d}</div>)}
         {weeks.flat().map((day) => {
-          const evs = occurrencesOnDay(board.events, day);
+          // fixed order: phases (e.g. Rev 3) first, then milestones, deadlines, and Plan items last
+          const evs = occurrencesOnDay(events, day).sort(compareOccurrences);
           const due = showTasks ? tasks.filter((t) => t.due_date === day) : [];
           const items = evs.length + due.length;
           const open = expanded === day;
-          const shownEvs = open ? evs : evs.slice(0, 3);
-          const shownTasks = open ? due : due.slice(0, Math.max(0, 3 - shownEvs.length));
+          const shownEvs = open ? evs : evs.slice(0, MAX_SHOWN);
+          const shownTasks = open ? due : due.slice(0, Math.max(0, MAX_SHOWN - shownEvs.length));
           const hidden = items - shownEvs.length - shownTasks.length;
           const dow = weekday(day);
           const meeting = dow === 2 ? 'Tue check-in' : dow === 4 ? 'Thu review' : '';
@@ -68,7 +70,7 @@ export function MonthView({ tasks, showTasks, onOpenEvent, onAddEvent }: {
                 );
               })}
               {hidden > 0 && <button className="more" onClick={() => setExpanded(day)}>+{hidden} more</button>}
-              {open && items > 3 && <button className="more" onClick={() => setExpanded(null)}>show less</button>}
+              {open && items > MAX_SHOWN && <button className="more" onClick={() => setExpanded(null)}>show less</button>}
             </div>
           );
         })}

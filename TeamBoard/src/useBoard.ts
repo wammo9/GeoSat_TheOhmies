@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { errMsg, supabase as sb } from './supabase';
-import type { Activity, CalEvent, Order, OrderDraft, SlideArchive, ColId, Comment, Evidence, Invite, Member, Person, Summary, Task, TaskDraft } from './types';
+import type { Activity, CalEvent, Order, OrderDraft, OrderRequest, RequestDraft, RequestStatus, SlideArchive, ColId, Comment, Evidence, Invite, Member, Person, Summary, Task, TaskDraft } from './types';
 import { addDays, nextWeekday, THURSDAY, todayDenver } from './lib/dates';
 import DEMO_SEED from '../seed/demo-tasks.json';
 import { contentTypeFor, DECK_BUCKET, storagePath } from './lib/files';
@@ -16,7 +16,7 @@ export type SaveResult =
 
 const TEAM_ORDER = ['J', 'A', 'W', 'M', 'T', 'B'];
 const teamRank = (i: string) => { const n = TEAM_ORDER.indexOf(i.toUpperCase()); return n < 0 ? 99 : n; }; // keep the team's usual order
-const TABLES = ['tasks', 'comments', 'activity', 'people', 'workspace_summary', 'members', 'invites', 'events', 'slide_archive', 'orders'] as const;
+const TABLES = ['tasks', 'comments', 'activity', 'people', 'workspace_summary', 'members', 'invites', 'events', 'slide_archive', 'orders', 'order_requests'] as const;
 type Table = (typeof TABLES)[number];
 
 const DEMO = DEMO_SEED.tasks;
@@ -32,6 +32,7 @@ export function useBoard(workspaceId: string, userId: string) {
   const [events, setEvents] = useState<CalEvent[]>([]);
   const [slideArchive, setSlideArchive] = useState<SlideArchive[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [orderRequests, setOrderRequests] = useState<OrderRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [live, setLive] = useState<Live>('connecting');
   const [liveDetail, setLiveDetail] = useState('');
@@ -60,6 +61,7 @@ export function useBoard(workspaceId: string, userId: string) {
         case 'invites': res = await q('invites'); break;
         case 'events': res = await q('events').order('start_date'); break;
         case 'orders': res = await q('orders'); break;
+        case 'order_requests': res = await q('order_requests').order('created_at', { ascending: false }); break;
         case 'slide_archive': res = await q('slide_archive').order('submitted_on', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false }); break;
       }
       if (res.error) throw res.error;
@@ -75,6 +77,7 @@ export function useBoard(workspaceId: string, userId: string) {
         // tolerate a database that hasn't had the recurring-events upgrade yet
         case 'events': setEvents(rows.map((r) => ({ ...r, recur: r.recur ?? 'none', recur_until: r.recur_until ?? null, recur_skip: r.recur_skip ?? [] }))); break;
         case 'slide_archive': setSlideArchive(rows); break;
+        case 'order_requests': setOrderRequests(rows.map((r) => ({ ...r, quantity: Number(r.quantity), est_unit_price: r.est_unit_price === null ? null : Number(r.est_unit_price) }))); break;
         case 'orders': setOrders(rows.map((r) => ({ ...r, quantity: Number(r.quantity), unit_price: Number(r.unit_price) }))); break;
       }
     },
@@ -142,6 +145,7 @@ export function useBoard(workspaceId: string, userId: string) {
       ['db/add-calendar.sql', 'Calendar events and task start dates', () => sb.from('tasks').select('start_date,event_id').limit(0)],
       ['db/add-recurring.sql', 'Repeating events', () => sb.from('events').select('recur,recur_until,recur_skip').limit(0)],
       ['db/add-budget.sql', 'The Budget tab (orders)', () => sb.from('orders').select('id').limit(0)],
+      ['db/add-requests.sql', 'Order requests on the Budget tab', () => sb.from('order_requests').select('id').limit(0)],
       ['db/add-slides.sql', 'Customer slides and file uploads', async () => {
         const a = await sb.from('workspace_summary').select('slides_working_url,slides_submitted_file').limit(0);
         return a.error ? a : sb.from('slide_archive').select('file_path').limit(0);
@@ -547,6 +551,67 @@ export function useBoard(workspaceId: string, userId: string) {
     [track, workspaceId, refresh],
   );
 
+  // ---------------------------------------------------------------- order requests
+  const fixReq = (r: any): OrderRequest => ({ ...r, quantity: Number(r.quantity), est_unit_price: r.est_unit_price === null ? null : Number(r.est_unit_price) });
+
+  const createRequest = useCallback(
+    (d: RequestDraft): Promise<OrderRequest | undefined> =>
+      track(async () => {
+        const { data, error } = await sb.from('order_requests').insert({ ...d, item: d.item.trim(), reason: d.reason.trim(), workspace_id: workspaceId }).select().single();
+        if (error) throw error;
+        const r = fixReq(data);
+        setOrderRequests((rs) => [r, ...rs]);
+        return r;
+      }),
+    [track, workspaceId],
+  );
+
+  /** Versioned request edit / decision: returns the latest copy on a conflict instead of overwriting. */
+  const saveRequest = useCallback(
+    (id: string, baseVersion: number, patch: Partial<RequestDraft> & { status?: RequestStatus; decision_note?: string | null; order_id?: string | null }) =>
+      track(async (): Promise<{ status: 'ok'; request: OrderRequest } | { status: 'conflict'; latest: OrderRequest } | { status: 'deleted' }> => {
+        const { data, error } = await sb.from('order_requests').update({ ...patch, version: baseVersion + 1 }).eq('id', id).eq('version', baseVersion).select();
+        if (error && error.code !== '40001') throw error;
+        if (!error && data?.length === 1) {
+          setOrderRequests((rs) => rs.map((r) => (r.id === id ? fixReq(data[0]) : r)));
+          return { status: 'ok', request: fixReq(data[0]) };
+        }
+        const { data: latest, error: e2 } = await sb.from('order_requests').select('*').eq('id', id).maybeSingle();
+        if (e2) throw e2;
+        if (!latest) return { status: 'deleted' };
+        setOrderRequests((rs) => rs.map((r) => (r.id === id ? fixReq(latest) : r)));
+        return { status: 'conflict', latest: fixReq(latest) };
+      }),
+    [track],
+  );
+
+  const deleteRequest = useCallback(
+    (id: string) =>
+      track(async () => {
+        const { data, error } = await sb.from('order_requests').delete().eq('id', id).select();
+        if (error) throw error;
+        if (!data?.length) throw new Error('Only the person who made this request (or an admin) can delete it.');
+        setOrderRequests((rs) => rs.filter((r) => r.id !== id));
+      }),
+    [track],
+  );
+
+  /** After an approved request has been turned into a budget order, mark it so (against the latest copy). */
+  const markRequestAdded = useCallback(
+    (requestId: string, orderId: string): Promise<boolean> =>
+      track(async () => {
+        for (let attempt = 0; attempt < 3; attempt++) {
+          const { data: cur, error } = await sb.from('order_requests').select('*').eq('id', requestId).maybeSingle();
+          if (error) throw error;
+          if (!cur) return true; // request was removed meanwhile; the order stands on its own
+          const r = await saveRequest(requestId, cur.version, { status: 'added', order_id: orderId });
+          if (r?.status === 'ok') return true;
+        }
+        throw new Error('The order was added, but its request could not be marked as done. Open the request and update it.');
+      }).then((x) => !!x),
+    [track, saveRequest],
+  );
+
   // ---------------------------------------------------------------- team
   const savePerson = useCallback(
     (p: Person, patch: Partial<Person>) =>
@@ -648,7 +713,8 @@ export function useBoard(workspaceId: string, userId: string) {
 
   return {
     workspaceId, userId, loading, live, liveDetail, reconnect, dbUpdates, saving, error, setError, notice, setNotice, today, thursday,
-    people, tasks, comments, activity, summary, members, invites, events, slideArchive, orders, me, person, actorName,
+    people, tasks, comments, activity, summary, members, invites, events, slideArchive, orders, orderRequests, me, person, actorName,
+    createRequest, saveRequest, deleteRequest, markRequestAdded,
     createOrder, saveOrder, deleteOrder, importOrders,
     submitSlidesCopy, deckDownloadUrl, removeSubmittedDeck, removeArchivedSlides,
     createEvent, saveEvent, deleteEvent, setTaskEvent,
