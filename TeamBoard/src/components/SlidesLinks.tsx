@@ -7,16 +7,24 @@ import { meetingAfter, nextMeeting, nextSubmissionDue } from '../lib/slides';
 import { useUI } from '../ctx';
 import LINKS from '../../config/links.json';
 
-/** The team's shared Google Drive folder. The link never changes, so it lives in config/links.json. */
-function DriveBox() {
+/** The team's fixed shared links (config/links.json): the Google Drive folder and the GitHub repository. */
+function ResourceLinks() {
+  const items = [
+    { key: 'drive', icon: '📁', title: 'Team Google Drive', blurb: 'All our documents, reports and files in one place.', url: LINKS.driveUrl, cta: 'Open Google Drive' },
+    { key: 'github', icon: '💻', title: 'Team GitHub', blurb: 'Our code, firmware and test results.', url: LINKS.githubUrl, cta: 'Open GitHub' },
+  ];
   return (
-    <section className="drive-box" aria-label="Team Google Drive">
-      <div>
-        <h2><span aria-hidden="true">📁 </span>Team Google Drive</h2>
-        <p className="muted small-text">All our documents, reports and files in one place.</p>
-      </div>
-      <a className="open-slides" href={LINKS.driveUrl} target="_blank" rel="noopener noreferrer">Open Google Drive <span aria-hidden="true">↗</span><span className="sr-only"> (opens in a new tab)</span></a>
-    </section>
+    <div className="resource-links">
+      {items.map((i) => (
+        <section key={i.key} className="drive-box" aria-label={i.title}>
+          <div>
+            <h2><span aria-hidden="true">{i.icon} </span>{i.title}</h2>
+            <p className="muted small-text">{i.blurb}</p>
+          </div>
+          <a className="open-slides" href={i.url} target="_blank" rel="noopener noreferrer">{i.cta} <span aria-hidden="true">↗</span><span className="sr-only"> (opens in a new tab)</span></a>
+        </section>
+      ))}
+    </div>
   );
 }
 
@@ -224,7 +232,7 @@ export function SlidesLinks() {
   if (!board.summary) return null;
   return (
     <div className="slides">
-      <DriveBox />
+      <ResourceLinks />
       <div className="slides-links">
         <WorkingDeck />
         <SubmittedDeck />

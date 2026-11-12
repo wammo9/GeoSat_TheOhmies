@@ -43,7 +43,7 @@ function AccountMenu({ board, email, onSignOut }: { board: Board; email: string;
 
 export type View = 'board' | 'tuesday' | 'thursday' | 'calendar' | 'budget' | 'slides' | 'all' | 'archive' | 'team';
 const TABS: [View, string][] = [
-  ['board', 'Board'], ['tuesday', 'Tuesday planning'], ['thursday', 'Thursday review'], ['calendar', 'Calendar'], ['budget', 'Budget'], ['slides', 'Slides & Drive'], ['all', 'All tasks'], ['archive', 'Archive'], ['team', 'Team'],
+  ['board', 'Board'], ['tuesday', 'Tuesday planning'], ['thursday', 'Thursday review'], ['calendar', 'Calendar'], ['budget', 'Budget'], ['slides', 'Slides & Links'], ['all', 'All tasks'], ['archive', 'Archive'], ['team', 'Team'],
 ];
 
 export function Header({ view, setView, board, email, onSignOut, onNew }: {
