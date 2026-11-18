@@ -53,6 +53,9 @@ If you ran the earlier `db/schema.sql` on a Supabase project, paste **`db/add-ca
 ### Fall 2026 semester timeline (optional, one-time)
 Paste **`db/fall-2026-timeline.sql`** into the SQL Editor and run it **once** to fill the Calendar with the Canvas deadlines, the manual's sprint phases, and our suggested checkpoints (those use their own **Plan** event type, shown with a dashed amber edge, and are labelled SUGGESTED). The file also adds the Plan type itself (`db/add-plan-type.sql` does just that, if you want only the type). It needs the Calendar and Recurring-events upgrades first, adds nothing twice if re-run, and every event can be edited or deleted in the app afterwards.
 
+### Card order release
+Paste **`db/add-task-order.sql`** into the SQL Editor and run it **once** (safe to run twice; no tasks are changed or deleted), then upload the new build. In every Board column the most recently placed card is now on top (a new task, or one just moved in), and you can drag any card above or below another, within a column or into another column at an exact spot. The order is saved and shared live. Without the SQL the Board still shows newest-first, but dragging to reorder can't be saved (the yellow notice names the file to run).
+
 ### Task archive release
 Paste **`db/add-archive.sql`** into the SQL Editor and run it **once** (safe to run twice; no tasks are changed or deleted), then upload the new build. Completed tasks then leave the Board's Completed column 7 days after they're finished (or immediately if someone chooses "Move to Archive") and live on their own **Archive** tab, so the Board stays uncluttered. Without the SQL the board keeps working; the yellow notice names the file to run.
 

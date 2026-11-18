@@ -297,7 +297,7 @@ describe('fall 2026 timeline script', () => {
     expect(on('Portfolio and Career Path due').start_date).toBe('2026-11-30');
     expect(on('Personal Reflection due').start_date).toBe('2026-12-04');
     expect(on('Project Metrics due').start_date).toBe('2026-12-04');
-    expect(on('Peer Evaluation 2 (opens Nov 8, due Nov 13)')).toMatchObject({ start_date: '2026-11-08', end_date: '2026-11-13' });
+    expect(on('Peer Evaluation 2 (opens Nov 8, due Nov 20)')).toMatchObject({ start_date: '2026-11-08', end_date: '2026-11-20' }); // Canvas extended it from Nov 13
     expect(on('Mini Expo poster due (Morning and Afternoon sections)').start_date).toBe('2026-11-13');
     expect(on('Week 10: PDR week')).toMatchObject({ start_date: '2026-10-19', end_date: '2026-10-23', is_major: false });
     expect(on('Rev 3 sprint (Weeks 11-13): final PoC iteration')).toMatchObject({ start_date: '2026-10-26', end_date: '2026-11-15' });
@@ -341,8 +341,8 @@ describe('fall 2026 timeline script', () => {
     expect(titles('2026-10-27')).toEqual([rev3, 'Submit PCB Gerbers (Tuesday run)']);
     expect(titles('2026-10-28')).toEqual([rev3, 'Weekly sponsor meeting (Wednesday)']);
     expect(titles('2026-11-13')[0]).toBe(rev3);
-    expect(titles('2026-11-20')).toEqual(['Functional PCB due', 'Sponsor meeting slides due (Fri 11:59 PM)']); // big deadline before ordinary one; Rev 3 is over
-    expect(titles('2026-11-19')).toEqual(['PoC Demo due']);
+    expect(titles('2026-11-20')).toEqual(['Functional PCB due', 'Peer Evaluation 2 (opens Nov 8, due Nov 20)', 'Sponsor meeting slides due (Fri 11:59 PM)']); // big deadline first, then the one that started earliest; Rev 3 is over
+    expect(titles('2026-11-19')).toEqual(['PoC Demo due', 'Peer Evaluation 2 (opens Nov 8, due Nov 20)']); // milestone first; the evaluation window is still open
   });
 
   it('accepts the Plan type and still rejects unknown types', async () => {
@@ -476,5 +476,43 @@ describe('PCB event type', () => {
     await expect(db.exec(readFileSync(new URL('./add-plan-type.sql', import.meta.url), 'utf8'))).resolves.not.toThrow();
     await expect(db.exec(readFileSync(new URL('./add-pcb-type.sql', import.meta.url), 'utf8'))).resolves.not.toThrow();
     expect((await db.query<any>(`select count(*)::int n from events where kind = 'pcb'`)).rows[0].n).toBe(1);
+  });
+});
+
+describe('card order within a column', () => {
+  const rankOf = async (id: string) => Number((await as(A, `select rank r from tasks where id='${id}'`))[0].r);
+  const ver = async (id: string) => (await as(A, `select version v from tasks where id='${id}'`))[0].v as number;
+  const mk = async (title: string) =>
+    (await as(A, `insert into tasks(workspace_id,title,owner_id,workstream,due_date,deliverable,col) values ('${ws}','${title}',$1,'Hardware','2026-12-01','d','backlog') returning id`, [owner]))[0].id as string;
+  let t1 = '', t2 = '';
+
+  it('puts a newly created task on top (lower rank than the one before it)', async () => {
+    t1 = await mk('Order first');
+    await new Promise((r) => setTimeout(r, 15));
+    t2 = await mk('Order second');
+    expect(await rankOf(t2)).toBeLessThan(await rankOf(t1));
+  });
+  it('puts a task that moves into a column on top of it, when no position was chosen', async () => {
+    const before = await rankOf(t1);
+    await new Promise((r) => setTimeout(r, 15));
+    const v = await ver(t1);
+    await as(A, `update tasks set col='in_progress', version=${v + 1} where id='${t1}' and version=${v}`);
+    expect(await rankOf(t1)).toBeLessThan(before); // re-stamped: newest placement
+  });
+  it('keeps a position that was chosen explicitly, in the same column or when moving columns', async () => {
+    let v = await ver(t2);
+    await as(A, `update tasks set rank=12345.5, version=${v + 1} where id='${t2}' and version=${v}`);
+    expect(await rankOf(t2)).toBe(12345.5); // reordered within its column
+    v = await ver(t2);
+    await as(A, `update tasks set col='thursday', rank=-42.25, version=${v + 1} where id='${t2}' and version=${v}`);
+    expect(await rankOf(t2)).toBe(-42.25); // dropped at a chosen spot in another column
+  });
+  it('does not log a plain reorder, but still logs a move', async () => {
+    const v = await ver(t2);
+    await as(A, `update tasks set rank=7, version=${v + 1} where id='${t2}' and version=${v}`);
+    const logs = await as<any>(A, `select action, detail from activity where task_id='${t2}' and entity='task' order by id`);
+    expect(logs.some((l) => l.detail && 'rank' in l.detail)).toBe(false);
+    expect(logs.filter((l) => l.action === 'moved').length).toBe(1);
+    expect(logs.length).toBe(2); // created + the one move; the reorders added nothing
   });
 });

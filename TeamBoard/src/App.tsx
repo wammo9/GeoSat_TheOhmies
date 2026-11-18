@@ -93,7 +93,13 @@ function Workspace({ ws, session }: { ws: string; session: Session }) {
     if (r === 'needs-evidence') setEvidenceFor(task);
   }, [board]);
 
-  const ui = useMemo(() => ({ board, openTask: setOpenId, move }), [board, move]);
+  const place = useCallback(async (task: Task, col: ColId, rank: number) => {
+    if (task.col === col) { await board.reorderTask(task, rank); return; }
+    const r = await board.moveTask(task, col, rank);
+    if (r === 'needs-evidence') setEvidenceFor(task);
+  }, [board]);
+
+  const ui = useMemo(() => ({ board, openTask: setOpenId, move, place }), [board, move, place]);
   const filtered = useMemo(
     () => board.tasks.filter((t) => matches(t, filters, board.today, board.people)),
     [board.tasks, filters, board.today, board.people],

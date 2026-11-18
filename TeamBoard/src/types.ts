@@ -41,6 +41,7 @@ export interface Task {
   is_demo: boolean;
   completed_at: string | null; // when it entered Completed (set by the database)
   archived_at: string | null; // set when someone archives it
+  rank: number | null; // order within a column, lowest first
   version: number;
   updated_by: string | null;
   updated_at: string;

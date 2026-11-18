@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { errMsg, supabase as sb } from './supabase';
 import type { Activity, CalEvent, Order, OrderDraft, OrderRequest, RequestDraft, RequestStatus, SlideArchive, ColId, Comment, Evidence, Invite, Member, Person, Summary, Task, TaskDraft } from './types';
 import { addDays, nextWeekday, THURSDAY, todayDenver } from './lib/dates';
+import { stampRank } from './lib/order';
 import DEMO_SEED from '../seed/demo-tasks.json';
 import { contentTypeFor, DECK_BUCKET, storagePath } from './lib/files';
 import { colTitle, completionError, evidenceFrom, hasEvidence, noDeliverableEvidence, validateDraft } from './lib/rules';
@@ -67,7 +68,7 @@ export function useBoard(workspaceId: string, userId: string) {
       if (res.error) throw res.error;
       const rows = res.data as any[];
       switch (t) {
-        case 'tasks': setTasks(rows.map((r) => ({ ...r, completed_at: r.completed_at ?? null, archived_at: r.archived_at ?? null }))); break; // tolerate a database without the archive upgrade
+        case 'tasks': setTasks(rows.map((r) => ({ ...r, completed_at: r.completed_at ?? null, archived_at: r.archived_at ?? null, rank: r.rank ?? null }))); break; // tolerate a database without the archive / card-order upgrades
         case 'comments': setComments(rows); break;
         case 'activity': setActivity(rows); break;
         case 'people': setPeople([...rows].sort((a, b) => teamRank(a.initial) - teamRank(b.initial) || a.created_at?.localeCompare(b.created_at ?? '') || 0)); break;
@@ -143,6 +144,7 @@ export function useBoard(workspaceId: string, userId: string) {
     const missing = /does not exist|schema cache|could not find|column/i;
     const probes: [string, string, () => PromiseLike<{ error: { message: string } | null }>][] = [
       ['db/add-calendar.sql', 'Calendar events and task start dates', () => sb.from('tasks').select('start_date,event_id').limit(0)],
+      ['db/add-task-order.sql', 'Card order on the Board (drag to reorder)', () => sb.from('tasks').select('rank').limit(0)],
       ['db/add-archive.sql', 'Task archive (completed tasks out of the way)', () => sb.from('tasks').select('completed_at,archived_at').limit(0)],
       ['db/add-recurring.sql', 'Repeating events', () => sb.from('events').select('recur,recur_until,recur_skip').limit(0)],
       ['db/add-budget.sql', 'The Budget tab (orders)', () => sb.from('orders').select('id').limit(0)],
@@ -252,12 +254,16 @@ export function useBoard(workspaceId: string, userId: string) {
     [track, updateTask],
   );
 
-  /** Move between columns. Returns 'needs-evidence' when the "was there a deliverable?" question still has to be answered. */
+  /**
+   * Move between columns. Without a `rank` the card goes on top of the new column (the newest placement);
+   * with one it lands exactly where it was dropped. Returns 'needs-evidence' when the "was there a deliverable?"
+   * question still has to be answered.
+   */
   const moveTask = useCallback(
-    async (task: Task, col: ColId): Promise<'ok' | 'needs-evidence' | 'conflict' | 'error'> => {
+    async (task: Task, col: ColId, rank?: number): Promise<'ok' | 'needs-evidence' | 'conflict' | 'error'> => {
       if (task.col === col) return 'ok';
       if (col === 'completed' && !hasEvidence(task.evidence)) return 'needs-evidence';
-      const patch: Partial<Task> = { col, ...(col === 'completed' ? { blocked: false } : {}) };
+      const patch: Partial<Task> = { col, rank: rank ?? stampRank(), ...(col === 'completed' ? { blocked: false } : {}) };
       setTasks((ts) => ts.map((x) => (x.id === task.id ? { ...x, ...patch } : x))); // optimistic
       const r = await track(() => updateTask(task.id, task.version, patch));
       if (!r) { refresh('tasks'); return 'error'; }
@@ -270,6 +276,35 @@ export function useBoard(workspaceId: string, userId: string) {
         return 'conflict';
       }
       return 'ok';
+    },
+    [track, updateTask, refresh],
+  );
+
+  /** Drag a card to a new spot in the column it's already in. Only touches its rank. */
+  const reorderTask = useCallback(
+    async (task: Task, rank: number): Promise<'ok' | 'conflict' | 'error'> => {
+      setTasks((ts) => ts.map((x) => (x.id === task.id ? { ...x, rank } : x))); // optimistic
+      const r = await track(() => updateTask(task.id, task.version, { rank }));
+      if (!r) { refresh('tasks'); return 'error'; }
+      if (!r.ok) {
+        setError(r.reason === 'deleted' ? `“${task.title}” was deleted by someone else.` : `“${task.title}” was just changed by someone else, so it wasn’t reordered. Try the drag again.`);
+        return 'conflict';
+      }
+      return 'ok';
+    },
+    [track, updateTask, refresh],
+  );
+
+  /**
+   * When two neighbours are too close to split again, give the whole column fresh, evenly spaced positions in one go.
+   * Each entry may also change the card's column (the dragged one).
+   */
+  const renumberCards = useCallback(
+    async (changes: { task: Task; rank: number; col?: ColId }[]): Promise<boolean> => {
+      setTasks((ts) => ts.map((x) => { const c = changes.find((y) => y.task.id === x.id); return c ? { ...x, rank: c.rank, ...(c.col ? { col: c.col } : {}) } : x; }));
+      const results = await track(() => Promise.all(changes.map((c) => updateTask(c.task.id, c.task.version, { rank: c.rank, ...(c.col ? { col: c.col } : {}) }))));
+      if (!results || results.some((r) => !r.ok)) { setError('Someone changed these cards while you were reordering, so the new order may not have saved. It’s been refreshed.'); refresh('tasks'); return false; }
+      return true;
     },
     [track, updateTask, refresh],
   );
@@ -744,7 +779,7 @@ export function useBoard(workspaceId: string, userId: string) {
     createOrder, saveOrder, deleteOrder, importOrders,
     submitSlidesCopy, deckDownloadUrl, removeSubmittedDeck, removeArchivedSlides,
     createEvent, saveEvent, deleteEvent, setTaskEvent,
-    archiveTask, archiveMany, createTask, saveTask, moveTask, addEvidence, addNoDeliverable, removeEvidence, carryForward, deleteTask, addComment,
+    archiveTask, archiveMany, reorderTask, renumberCards, createTask, saveTask, moveTask, addEvidence, addNoDeliverable, removeEvidence, carryForward, deleteTask, addComment,
     saveSummary, savePerson, addPerson, addInvite, removeInvite, removeMember, loadDemo, removeDemo, refresh,
   };
 }

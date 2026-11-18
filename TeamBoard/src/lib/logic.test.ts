@@ -13,7 +13,7 @@ const person = (id: string, initial: string): Person => ({
 const task = (o: Partial<Task>): Task => ({
   id: 't', workspace_id: 'w', title: 'T', owner_id: 'J', supporters: [], workstream: 'Hardware', start_date: null, event_id: null,
   due_date: '2026-10-22', deliverable: 'd', priority: 'Medium', col: 'backlog', blocked: false, blocker: null,
-  dependencies: null, evidence: [], is_demo: false, completed_at: null, archived_at: null, version: 1, updated_by: null, updated_at: '', created_at: '', ...o,
+  dependencies: null, evidence: [], is_demo: false, completed_at: null, archived_at: null, rank: null, version: 1, updated_by: null, updated_at: '', created_at: '', ...o,
 });
 
 describe('dates (America/Denver)', () => {
