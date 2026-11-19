@@ -10,48 +10,63 @@ LoRa_E32 e32ttl(&mySerial);
 Adafruit_INA219 ina219;
 
 int counter = 0;
+float lastPeakCurrent_mA = 0.0;
+float lastBusVoltage = 0.0;
+float lastPeakPower_mW = 0.0;
 
 void setup() {
   Serial.begin(9600);
-  while (!Serial) {
-    ; 
-  }
+  while (!Serial) { ; }
   
   e32ttl.begin();
   Serial.println("Transmitter Ready!");
-  if(!ina219.begin()){
-    Serial.println("not working");
-  }
-  if(ina219.begin()){
-    Serial.println(" working");
-  }
   
-
+  // Note: Only call ina219.begin() once (calling it twice resets configuration)
+  if (!ina219.begin()) {
+    Serial.println("INA219 not working");
+    while (1) { delay(10); }
+  }
+  Serial.println("INA219 working");
 }
 
 void loop() {
-  
-  float busVoltage = ina219.getBusVoltage_V();
-  float current_mA = ina219.getCurrent_mA();
-  float power_mW   = ina219.getPower_mW();
-
-  // Format the payload (e.g., "Cnt:0|V:12.05|I:150.2|P:1809.9")
-  String info = "|V:" + String(busVoltage, 2) + 
-                   "|I:" + String(current_mA, 1) + 
-                   "|P:" + String(power_mW, 1) + "|";
-
- String message = "Count:" + String(counter)+
-                  "|V:" + String(busVoltage, 2) + 
-                   "|I:" + String(current_mA, 1) + 
-                   "|P:" + String(power_mW, 1) + "|";
+  // 1. Send the peak values captured during the PREVIOUS transmission
+  String message = "Count:" + String(counter) +
+                   "|V:" + String(lastBusVoltage, 2) + 
+                   "|I:" + String(lastPeakCurrent_mA, 1) + 
+                   "|P:" + String(lastPeakPower_mW, 1) + "|";
 
   Serial.print("Sending: ");
-  Serial.print(info);
   Serial.println(message);
 
-  
+  // Hand off data to the E32 module
   ResponseStatus rs = e32ttl.sendMessage(message);
+
+  // 2. Immediately poll the INA219 for ~400ms to catch the RF burst
+  float peakCurrent = 0.0;
+  float peakPower = 0.0;
+  float minVoltage = 99.0;
   
+  unsigned long startTime = millis();
+  while (millis() - startTime < 400) {
+    float c = ina219.getCurrent_mA();
+    float v = ina219.getBusVoltage_V();
+    float p = ina219.getPower_mW();
+    
+    if (c > peakCurrent) peakCurrent = c;
+    if (p > peakPower)   peakPower = p;
+    if (v < minVoltage)  minVoltage = v;
+  }
+
+  // Save readings to transmit in the next packet
+  lastPeakCurrent_mA = peakCurrent;
+  lastBusVoltage = minVoltage;
+  lastPeakPower_mW = peakPower;
+
+  Serial.print("Measured Peak Current during TX: ");
+  Serial.print(lastPeakCurrent_mA, 1);
+  Serial.println(" mA");
+
   if (rs.code == 1) {
     Serial.println("Successfully handed off to module!");
   } else {
