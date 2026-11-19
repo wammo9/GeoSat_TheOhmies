@@ -1,0 +1,64 @@
+#include "Arduino.h"
+#include "LoRa_E32.h"
+#include <SoftwareSerial.h>
+#include <Adafruit_INA219.h>
+
+// RX Pin = 12 (Connect to E32 TX)
+// TX Pin = 11 (Connect to E32 RX via level shifter)
+SoftwareSerial mySerial(12, 11); 
+LoRa_E32 e32ttl(&mySerial);
+Adafruit_INA219 ina219;
+
+int counter = 0;
+
+void setup() {
+  Serial.begin(9600);
+  while (!Serial) {
+    ; 
+  }
+  
+  e32ttl.begin();
+  Serial.println("Transmitter Ready!");
+  if(!ina219.begin()){
+    Serial.println("not working");
+  }
+  if(ina219.begin()){
+    Serial.println(" working");
+  }
+  
+
+}
+
+void loop() {
+  
+  float busVoltage = ina219.getBusVoltage_V();
+  float current_mA = ina219.getCurrent_mA();
+  float power_mW   = ina219.getPower_mW();
+
+  // Format the payload (e.g., "Cnt:0|V:12.05|I:150.2|P:1809.9")
+  String info = "|V:" + String(busVoltage, 2) + 
+                   "|I:" + String(current_mA, 1) + 
+                   "|P:" + String(power_mW, 1) + "|";
+
+ String message = "Count:" + String(counter)+
+                  "|V:" + String(busVoltage, 2) + 
+                   "|I:" + String(current_mA, 1) + 
+                   "|P:" + String(power_mW, 1) + "|";
+
+  Serial.print("Sending: ");
+  Serial.print(info);
+  Serial.println(message);
+
+  
+  ResponseStatus rs = e32ttl.sendMessage(message);
+  
+  if (rs.code == 1) {
+    Serial.println("Successfully handed off to module!");
+  } else {
+    Serial.print("Error sending: ");
+    Serial.println(rs.getResponseDescription());
+  }
+
+  counter++;
+  delay(2000);
+}
