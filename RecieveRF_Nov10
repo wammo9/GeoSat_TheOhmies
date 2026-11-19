@@ -1,0 +1,75 @@
+#include "Arduino.h"
+#include "LoRa_E32.h"
+#include <SoftwareSerial.h>
+#include <Wire.h>
+#include <Adafruit_INA219.h>
+
+// RX Pin = 12 (Connect to E32 TX)
+// TX Pin = 11 (Connect to E32 RX via level shifter)
+SoftwareSerial mySerial(12, 11);
+LoRa_E32 e32ttl(&mySerial);
+
+// INA219 on I2C (SDA = A4, SCL = A5 on Uno/Nano), default address 0x40
+Adafruit_INA219 ina219;
+bool inaOk = false;
+
+unsigned long lastHeartbeat = 0;
+const unsigned long heartbeatInterval = 3000; // Print status every 3 seconds
+
+void setup() {
+  pinMode(LED_BUILTIN, OUTPUT);
+  Serial.begin(9600);
+  delay(1000);
+
+  inaOk = ina219.begin();
+  if (inaOk) {
+    // Default range: 32V, 2A. Uncomment one for better resolution at low current:
+    // ina219.setCalibration_32V_1A();
+    // ina219.setCalibration_16V_400mA();
+    Serial.println("INA219 found.");
+  } else {
+    Serial.println("INA219 NOT found - check wiring on A4/A5!");
+  }
+
+  e32ttl.begin();
+  Serial.println("Receiver Ready! Waiting for data...");
+}
+
+void loop() {
+  // 1. Continuously check for incoming LoRa messages
+  if (e32ttl.available() > 0) {
+    ResponseContainer rc = e32ttl.receiveMessage();
+
+    if (rc.status.code == 1) {
+      Serial.print("\n[RECEIVED] Data: ");
+      Serial.println(rc.data);
+
+      // Reset the heartbeat timer so it doesn't interrupt immediately
+      lastHeartbeat = millis();
+    } else {
+      Serial.print("\n[ERROR] Reading failed: ");
+      Serial.println(rc.status.getResponseDescription());
+    }
+  }
+
+  // 2. Non-blocking heartbeat + power readings every 3 seconds
+  if (millis() - lastHeartbeat >= heartbeatInterval) {
+    lastHeartbeat = millis();
+    Serial.println("Still waiting for data...");
+
+    if (inaOk) {
+      float current_mA = ina219.getCurrent_mA();
+      float busV = ina219.getBusVoltage_V();
+      Serial.print("Current: ") ;
+      Serial.print(current_mA, 1);
+      Serial.print(" mA | Bus voltage: ");
+      Serial.print(busV, 2);
+      Serial.println(" V");
+    }
+
+    // Quick flash on the onboard LED to show the loop is alive
+    digitalWrite(LED_BUILTIN, HIGH);
+    delay(50);
+    digitalWrite(LED_BUILTIN, LOW);
+  }
+}
